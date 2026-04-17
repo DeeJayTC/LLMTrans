@@ -2,50 +2,16 @@
 
 **Drop-in multilingual proxy for LLMs, MCP servers, and any HTTP+JSON API.**
 
-## Why this exists
-
-Most of the popular LLMs are trained predominantly on English. You can feel it
-when you switch languages. Ask GPT, Claude or Gemini the same question in
-German and then in English, and the English answer is usually sharper, picks
-better vocabulary, and handles nuance more cleanly. The gap gets wider for
-reasoning-heavy prompts, code explanations, and tool calling. A user
-interacting in Spanish or Japanese or Dutch gets a measurably worse experience
-than one interacting in English, on the same model, for the same money.
-
-If you are building a product, that leaves an uncomfortable choice. Ship in
-English and alienate the users who did not grow up with it. Let users prompt
-in their own language and accept that output quality takes a hit. Or wire up
-something like DeepL yourself and find out that translating JSON payloads
-without breaking them is its own engineering project: tokenising code blocks,
-preserving URLs and identifiers, avoiding translation of tool-call argument
-keys, stitching streaming chunks back together into complete sentences before
-sending them to the translator, then tearing that apart again on the way back
-so the SDK stream contract still holds.
-
-llmtrans is that layer, pulled out as a product. Your app keeps talking to
-OpenAI or Anthropic or any JSON-returning LLM. It points at llmtrans instead
-of the vendor. The LLM still sees English. Your user still sees their
-language. Code, URLs, tool schemas, and streaming deltas survive the round
-trip.
-
-The same problem shows up with MCP servers. Tool descriptions, arguments, and
-results are all text someone will eventually read or parse into their context,
-and most of those servers speak English. llmtrans covers MCPs too, so you can
-point a German or French user's Claude Desktop at a GitHub or Linear MCP and
-have every tool description, argument, and result arrive translated, while
-their OAuth token stays on their own machine and never touches our servers.
-
-## What it is, technically
+Most popular LLMs are trained predominantly on English: ask the same question
+in German or Japanese and the answer is measurably worse than in English, on
+the same model, for the same money. llmtrans sits between your app and the
+vendor so the LLM keeps seeing English while your user keeps seeing their
+language. JSON shapes, code blocks, URLs, tool schemas, and streaming deltas
+survive the round trip. Works for MCP servers too.
 
 Change your SDK's base URL from `api.openai.com` / `api.anthropic.com` / your
-MCP server to `llmtrans`, and requests and responses are translated end to
-end. JSON shapes, code blocks, URLs, identifiers, and tool-call schemas stay
-byte-identical. Streaming works. Tool arguments (JSON-in-JSON) work. PII can
-be redacted before the upstream sees it. Your upstream API keys pass through
-byte-for-byte and are never persisted.
-
-Built on .NET 10 with the official [DeepL .NET SDK](https://github.com/DeepLcom/deepl-dotnet)
-and a Vue 3 admin UI.
+MCP server to llmtrans. That's it. Built on .NET 10 with the official
+[DeepL .NET SDK](https://github.com/DeepLcom/deepl-dotnet) and a Vue 3 admin UI.
 
 ---
 
@@ -74,19 +40,18 @@ and a Vue 3 admin UI.
 git clone https://github.com/DeeJayTC/llmtrans.git
 cd llmtrans/deploy
 cp .env.example .env
-docker compose up --build
+docker compose up --build                  # API + Admin UI
+docker compose --profile demo up --build   # adds the chat demo
 ```
 
 - **API**: <http://localhost:8080> (health at `/healthz`)
 - **Admin UI**: <http://localhost:8000>
+- **Chat demo** (with `--profile demo`): <http://localhost:8100>
 
-The default `.env` seeds a known route token (`rt_dev_LOCALDEMO`) against OpenAI's
-API and selects the `passthrough` translator, so nothing actually translates until
-you provide a real translator key. Flip `LLMTRANS_DEFAULT_TRANSLATOR=deepl` and
-set `DEEPL_API_KEY`, or point at an OpenAI-compatible model with
-`LLMTRANS_DEFAULT_TRANSLATOR=llm` + `LLM_TRANSLATOR_API_KEY`.
+Full docker compose guide, env vars, scaling, observability, and production
+notes live in [deploy/README.md](deploy/README.md).
 
-Ship to production with the bundled [Helm chart](deploy/helm/), or run from source:
+Run from source instead:
 
 ```bash
 cd src/LlmTrans.Api  &&  dotnet run --urls http://localhost:5000
