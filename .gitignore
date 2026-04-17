@@ -1,0 +1,23 @@
+bin/
+obj/
+.vs/
+*.user
+*.suo
+out/
+artifacts/
+*.db
+*.db-journal
+appsettings.Development.local.json
+.env
+.env.local
+node_modules/
+dist/
+.vite/
+coverage/
+TestResults/
+
+# Closed-source SaaS sidecar — orgs, invites, SCIM, Stripe metered billing.
+# Lives outside the public repo; builds as a plugin DLL picked up by LlmTrans.Api
+# at runtime via LlmTrans.Core.Plugins.IWebPlugin.
+# See .private/README.md (if present) for the intended layout.
+.private/

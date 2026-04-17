@@ -1,0 +1,106 @@
+# Default values for the llmtrans Helm chart. See templates/ for how each option is consumed.
+# Values that vary between self-host and SaaS are grouped under `edition.*`.
+
+image:
+  repository: ghcr.io/deejaytc/llmtrans-api
+  tag: latest
+  pullPolicy: IfNotPresent
+
+ui:
+  enabled: true
+  image:
+    repository: ghcr.io/deejaytc/llmtrans-ui
+    tag: latest
+    pullPolicy: IfNotPresent
+  replicaCount: 2
+
+api:
+  replicaCount: 2
+  # Host + port the API listens on inside the pod. Keep 8080 to match the Dockerfile.
+  port: 8080
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+edition: self-hosted  # or: saas
+
+database:
+  provider: Postgres  # Sqlite | Postgres | SqlServer
+  # When provider=Sqlite, the chart creates a PVC; otherwise wire the connection string below.
+  sqlite:
+    persistence:
+      size: 4Gi
+      storageClassName: ""
+  # Postgres / SQL Server — pass a pre-built connection string via an existing Secret.
+  existingSecret:
+    name: ""
+    connectionStringKey: connectionString
+
+redis:
+  enabled: false
+  connectionString: ""
+
+translators:
+  default: passthrough
+  # Secret holding translator API keys. Keys expected in the Secret:
+  #   deeplApiKey, llmApiKey, stripeSecretKey
+  existingSecret: ""
+
+saas:
+  # Only consulted when edition: saas
+  multiOrg: true
+  billing: true
+  scim: true
+  billingAdapter: stripe
+  stripe:
+    # subscription-item IDs for each billed meter (must match Stripe product catalogue)
+    subscriptionItemByMeter:
+      requests: ""
+      chars_translated: ""
+
+otel:
+  enabled: false
+  endpoint: ""
+
+service:
+  type: ClusterIP
+  apiPort: 8080
+  uiPort: 80
+
+ingress:
+  enabled: true
+  className: nginx
+  host: llmtrans.example.com
+  tls:
+    enabled: true
+    secretName: llmtrans-tls
+  annotations:
+    # SSE requires disabled buffering
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+
+pdb:
+  enabled: true
+  minAvailable: 1
+
+podSecurityContext:
+  runAsNonRoot: true
+  fsGroup: 2000
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  runAsUser: 1000
+  capabilities:
+    drop:
+      - ALL

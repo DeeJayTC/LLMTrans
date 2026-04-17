@@ -1,0 +1,88 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "llmtrans.fullname" . }}-api
+  labels: {{- include "llmtrans.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api
+spec:
+  replicas: {{ .Values.api.replicaCount }}
+  selector:
+    matchLabels: {{- include "llmtrans.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: api
+  template:
+    metadata:
+      labels: {{- include "llmtrans.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: api
+    spec:
+      securityContext: {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: api
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.api.port }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "llmtrans.fullname" . }}-config
+          env:
+            {{- if and (ne .Values.database.provider "Sqlite") .Values.database.existingSecret.name }}
+            - name: Database__ConnectionString
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.existingSecret.name }}
+                  key: {{ .Values.database.existingSecret.connectionStringKey | default "connectionString" }}
+            {{- end }}
+            {{- if .Values.redis.enabled }}
+            - name: Redis__ConnectionString
+              value: {{ .Values.redis.connectionString | quote }}
+            {{- end }}
+            {{- if .Values.translators.existingSecret }}
+            - name: Translators__DeepL__ApiKey
+              valueFrom:
+                secretKeyRef: { name: {{ .Values.translators.existingSecret }}, key: deeplApiKey, optional: true }
+            - name: Translators__Llm__ApiKey
+              valueFrom:
+                secretKeyRef: { name: {{ .Values.translators.existingSecret }}, key: llmApiKey, optional: true }
+            - name: Stripe__SecretKey
+              valueFrom:
+                secretKeyRef: { name: {{ .Values.translators.existingSecret }}, key: stripeSecretKey, optional: true }
+            {{- end }}
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 3
+          readinessProbe:
+            httpGet: { path: /healthz, port: http }
+            initialDelaySeconds: 2
+            periodSeconds: 5
+            timeoutSeconds: 3
+          resources: {{- toYaml .Values.api.resources | nindent 12 }}
+          securityContext: {{- toYaml .Values.securityContext | nindent 12 }}
+          {{- if eq .Values.database.provider "Sqlite" }}
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          {{- end }}
+      {{- if eq .Values.database.provider "Sqlite" }}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "llmtrans.fullname" . }}-data
+      {{- end }}
+---
+{{- if eq .Values.database.provider "Sqlite" }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "llmtrans.fullname" . }}-data
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: {{ .Values.database.sqlite.persistence.size }}
+  {{- with .Values.database.sqlite.persistence.storageClassName }}
+  storageClassName: {{ . }}
+  {{- end }}
+{{- end }}

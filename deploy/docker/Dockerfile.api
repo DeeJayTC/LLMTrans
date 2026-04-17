@@ -1,0 +1,52 @@
+# syntax=docker/dockerfile:1.7
+# Build stage — restore + publish the API
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+
+# Layer-friendly restore
+COPY global.json Directory.Build.props llmtrans.slnx ./
+COPY src/LlmTrans.Core/*.csproj                       src/LlmTrans.Core/
+COPY src/LlmTrans.Api/*.csproj                        src/LlmTrans.Api/
+COPY src/LlmTrans.Infrastructure/*.csproj             src/LlmTrans.Infrastructure/
+COPY src/LlmTrans.Providers.OpenAI/*.csproj           src/LlmTrans.Providers.OpenAI/
+COPY src/LlmTrans.Providers.Anthropic/*.csproj        src/LlmTrans.Providers.Anthropic/
+COPY src/LlmTrans.Providers.Mcp/*.csproj              src/LlmTrans.Providers.Mcp/
+COPY src/LlmTrans.Providers.Generic/*.csproj          src/LlmTrans.Providers.Generic/
+COPY src/LlmTrans.Mcp.TranslateApi/*.csproj           src/LlmTrans.Mcp.TranslateApi/
+COPY src/LlmTrans.Translators.Passthrough/*.csproj    src/LlmTrans.Translators.Passthrough/
+COPY src/LlmTrans.Translators.DeepL/*.csproj          src/LlmTrans.Translators.DeepL/
+COPY src/LlmTrans.Translators.Llm/*.csproj            src/LlmTrans.Translators.Llm/
+COPY src/LlmTrans.Pii.Presidio/*.csproj               src/LlmTrans.Pii.Presidio/
+
+RUN dotnet restore src/LlmTrans.Api/LlmTrans.Api.csproj
+
+# Copy sources
+COPY src/ src/
+COPY catalog/ catalog/
+RUN dotnet publish src/LlmTrans.Api/LlmTrans.Api.csproj -c Release -o /app --no-restore
+
+# Runtime stage
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+WORKDIR /app
+
+# wget for the compose healthcheck (base image ships no http client).
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends wget ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=build /app ./
+# Catalog file is loaded at startup; ship it alongside the binary.
+COPY --from=build /src/catalog ./catalog
+
+ENV ASPNETCORE_URLS=http://+:8080 \
+    ASPNETCORE_ENVIRONMENT=Production \
+    Database__Path=/data/llmtrans.db \
+    Mcp__CatalogFile=/app/catalog/mcp-servers.json
+
+VOLUME ["/data"]
+EXPOSE 8080
+
+HEALTHCHECK --interval=15s --timeout=3s --start-period=15s --retries=5 \
+    CMD wget -qO- http://localhost:8080/healthz > /dev/null 2>&1 || exit 1
+
+ENTRYPOINT ["dotnet", "LlmTrans.Api.dll"]

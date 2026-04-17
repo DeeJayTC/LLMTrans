@@ -1,0 +1,20 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/LlmTrans.Api/LlmTrans.Api.csproj" />
+    <Project Path="src/LlmTrans.Core/LlmTrans.Core.csproj" />
+    <Project Path="src/LlmTrans.Infrastructure/LlmTrans.Infrastructure.csproj" />
+    <Project Path="src/LlmTrans.Mcp.TranslateApi/LlmTrans.Mcp.TranslateApi.csproj" />
+    <Project Path="src/LlmTrans.Pii.Presidio/LlmTrans.Pii.Presidio.csproj" />
+    <Project Path="src/LlmTrans.Providers.Anthropic/LlmTrans.Providers.Anthropic.csproj" />
+    <Project Path="src/LlmTrans.Providers.Generic/LlmTrans.Providers.Generic.csproj" />
+    <Project Path="src/LlmTrans.Providers.Mcp/LlmTrans.Providers.Mcp.csproj" />
+    <Project Path="src/LlmTrans.Providers.OpenAI/LlmTrans.Providers.OpenAI.csproj" />
+    <Project Path="src/LlmTrans.Translators.DeepL/LlmTrans.Translators.DeepL.csproj" />
+    <Project Path="src/LlmTrans.Translators.Llm/LlmTrans.Translators.Llm.csproj" />
+    <Project Path="src/LlmTrans.Translators.Passthrough/LlmTrans.Translators.Passthrough.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/LlmTrans.Core.Tests/LlmTrans.Core.Tests.csproj" />
+    <Project Path="tests/LlmTrans.Integration.Tests/LlmTrans.Integration.Tests.csproj" />
+  </Folder>
+</Solution>

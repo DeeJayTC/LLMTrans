@@ -1,0 +1,123 @@
+# Smallest self-host layout: API + UI + SQLite volume.
+# Uncomment the postgres / redis / otel blocks for larger deployments.
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/docker/Dockerfile.api
+    environment:
+      ASPNETCORE_URLS: http://+:8080
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      Database__Provider: Sqlite
+      Database__Path: /data/llmtrans.db
+      Translators__Default: ${LLMTRANS_DEFAULT_TRANSLATOR:-passthrough}
+      Translators__DeepL__ApiKey: ${DEEPL_API_KEY:-}
+      Translators__DeepL__BaseUrl: ${DEEPL_BASE_URL:-https://api.deepl.com/}
+      Translators__Llm__ApiKey: ${LLM_TRANSLATOR_API_KEY:-}
+      Translators__Llm__BaseUrl: ${LLM_TRANSLATOR_BASE_URL:-https://api.openai.com/}
+      Translators__Llm__Model: ${LLM_TRANSLATOR_MODEL:-gpt-4o-mini}
+      Dev__FixedRouteToken: ${DEV_FIXED_ROUTE_TOKEN:-}
+      PublicBaseUrl: ${PUBLIC_BASE_URL:-http://localhost:8080}
+    volumes:
+      - llmtrans-data:/data
+    expose:
+      - "8080"
+    ports:
+      - "${API_PORT:-8080}:8080"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/healthz || exit 1"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+  ui:
+    build:
+      context: ..
+      dockerfile: deploy/docker/Dockerfile.ui
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "${UI_PORT:-8000}:80"
+    restart: unless-stopped
+
+  # Sample app: minimal .NET backend + Vue UI that talks to OpenAI through llmtrans.
+  # Optional — only starts when you run `docker compose --profile demo up`.
+  demo-api:
+    profiles: ["demo"]
+    build:
+      context: ..
+      dockerfile: deploy/docker/Dockerfile.demo-api
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_URLS: http://+:5100
+      ASPNETCORE_ENVIRONMENT: Production
+      Demo__LlmtransBaseUrl: http://api:8080
+      Demo__LlmtransRouteToken: ${DEV_FIXED_ROUTE_TOKEN:-rt_dev_LOCALDEMO}
+      Demo__OpenAiApiKey: ${OPENAI_API_KEY:-}
+      Demo__Model: ${DEMO_MODEL:-gpt-4o-mini}
+      Demo__LlmLanguage: ${DEMO_LLM_LANGUAGE:-en}
+      Demo__Temperature: ${DEMO_TEMPERATURE:-0.3}
+      Demo__SystemPrompt: ${DEMO_SYSTEM_PROMPT:-You are a friendly assistant. Keep answers short and concrete.}
+      Demo__AllowedOrigins__0: http://localhost:${DEMO_UI_PORT:-8100}
+      Demo__IncludePayloads: ${DEMO_INCLUDE_PAYLOADS:-true}
+    ports:
+      - "${DEMO_API_PORT:-5100}:5100"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:5100/healthz || exit 1"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+  demo-ui:
+    profiles: ["demo"]
+    build:
+      context: ..
+      dockerfile: deploy/docker/Dockerfile.demo-ui
+    depends_on:
+      demo-api:
+        condition: service_healthy
+    ports:
+      - "${DEMO_UI_PORT:-8100}:80"
+    restart: unless-stopped
+
+  # Optional: Redis for translation cache, rate limits, route cache.
+  # Enable by uncommenting and setting `Redis__ConnectionString` on api.
+  # redis:
+  #   image: redis:7-alpine
+  #   command: ["redis-server", "--save", "60", "1", "--appendonly", "no"]
+  #   volumes:
+  #     - llmtrans-redis:/data
+  #   restart: unless-stopped
+
+  # Optional: Postgres for production-grade persistence.
+  # To use: set api env Database__Provider=Postgres,
+  #             Database__ConnectionString=Host=postgres;Database=llmtrans;Username=llmtrans;Password=${POSTGRES_PASSWORD}
+  # postgres:
+  #   image: postgres:17-alpine
+  #   environment:
+  #     POSTGRES_DB: llmtrans
+  #     POSTGRES_USER: llmtrans
+  #     POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?postgres password required}
+  #   volumes:
+  #     - llmtrans-postgres:/var/lib/postgresql/data
+  #   restart: unless-stopped
+
+  # Optional: OTLP collector — set api env OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+  # otel-collector:
+  #   image: otel/opentelemetry-collector-contrib:latest
+  #   command: ["--config=/etc/otel-collector-config.yaml"]
+  #   volumes:
+  #     - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro
+  #   restart: unless-stopped
+
+volumes:
+  llmtrans-data:
+  # llmtrans-redis:
+  # llmtrans-postgres:

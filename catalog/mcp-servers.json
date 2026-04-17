@@ -1,0 +1,156 @@
+{
+  "$schema": "mcp-catalog.schema.json",
+  "generated": "2026-04-17",
+  "entries": [
+    {
+      "slug": "github",
+      "displayName": "GitHub",
+      "description": "Access GitHub issues, pull requests, and code via the official MCP server.",
+      "transport": "stdio-local",
+      "upstreamCommandHint": "npx -y @modelcontextprotocol/server-github",
+      "docsUrl": "https://github.com/modelcontextprotocol/servers/tree/main/src/github",
+      "publisher": "anthropic",
+      "verified": true
+    },
+    {
+      "slug": "gitlab",
+      "displayName": "GitLab",
+      "description": "GitLab projects, issues, and merge requests.",
+      "transport": "stdio-local",
+      "upstreamCommandHint": "npx -y @modelcontextprotocol/server-gitlab",
+      "docsUrl": "https://github.com/modelcontextprotocol/servers/tree/main/src/gitlab",
+      "publisher": "anthropic",
+      "verified": true
+    },
+    {
+      "slug": "slack",
+      "displayName": "Slack",
+      "description": "Read and send Slack messages from authorised channels.",
+      "transport": "stdio-local",
+      "upstreamCommandHint": "npx -y @modelcontextprotocol/server-slack",
+      "docsUrl": "https://github.com/modelcontextprotocol/servers/tree/main/src/slack",
+      "publisher": "anthropic",
+      "verified": true
+    },
+    {
+      "slug": "filesystem",
+      "displayName": "Filesystem",
+      "description": "Browse and edit files in a configured local directory.",
+      "transport": "stdio-local",
+      "upstreamCommandHint": "npx -y @modelcontextprotocol/server-filesystem <path>",
+      "docsUrl": "https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem",
+      "publisher": "anthropic",
+      "verified": true
+    },
+    {
+      "slug": "linear",
+      "displayName": "Linear",
+      "description": "Linear issues, cycles, and project views via OAuth.",
+      "transport": "remote",
+      "upstreamUrl": "https://mcp.linear.app/",
+      "docsUrl": "https://linear.app/changelog/2025-05-mcp",
+      "publisher": "linear",
+      "verified": true
+    },
+    {
+      "slug": "notion",
+      "displayName": "Notion",
+      "description": "Search and edit pages in a Notion workspace.",
+      "transport": "stdio-local",
+      "upstreamCommandHint": "npx -y @modelcontextprotocol/server-notion",
+      "docsUrl": "https://github.com/modelcontextprotocol/servers",
+      "publisher": "community",
+      "verified": false
+    },
+    {
+      "slug": "atlassian",
+      "displayName": "Atlassian (Jira + Confluence)",
+      "description": "Atlassian Jira issues and Confluence pages via the official remote MCP.",
+      "transport": "remote",
+      "upstreamUrl": "https://mcp.atlassian.com/",
+      "docsUrl": "https://www.atlassian.com/platform/mcp",
+      "publisher": "atlassian",
+      "verified": true
+    },
+    {
+      "slug": "intercom",
+      "displayName": "Intercom",
+      "description": "Intercom conversations and contacts.",
+      "transport": "remote",
+      "upstreamUrl": "https://mcp.intercom.com/",
+      "docsUrl": "https://www.intercom.com/help/en/articles/11054",
+      "publisher": "intercom",
+      "verified": true
+    },
+    {
+      "slug": "postgres",
+      "displayName": "Postgres",
+      "description": "Read-only SQL queries against a configured Postgres connection.",
+      "transport": "stdio-local",
+      "upstreamCommandHint": "npx -y @modelcontextprotocol/server-postgres postgres://...",
+      "docsUrl": "https://github.com/modelcontextprotocol/servers/tree/main/src/postgres",
+      "publisher": "anthropic",
+      "verified": true
+    },
+    {
+      "slug": "sentry",
+      "displayName": "Sentry",
+      "description": "Sentry issues, events, and releases.",
+      "transport": "remote",
+      "upstreamUrl": "https://mcp.sentry.dev/",
+      "docsUrl": "https://docs.sentry.io/product/mcp/",
+      "publisher": "sentry",
+      "verified": true
+    },
+    {
+      "slug": "stripe",
+      "displayName": "Stripe",
+      "description": "Stripe customers, products, and payments.",
+      "transport": "remote",
+      "upstreamUrl": "https://mcp.stripe.com/",
+      "docsUrl": "https://docs.stripe.com/mcp",
+      "publisher": "stripe",
+      "verified": true
+    },
+    {
+      "slug": "gmail",
+      "displayName": "Gmail",
+      "description": "Gmail messages and threads (read + draft).",
+      "transport": "stdio-local",
+      "upstreamCommandHint": "npx -y @modelcontextprotocol/server-gmail",
+      "docsUrl": "https://github.com/modelcontextprotocol/servers",
+      "publisher": "community",
+      "verified": false
+    },
+    {
+      "slug": "google-drive",
+      "displayName": "Google Drive",
+      "description": "Search and read Google Drive files.",
+      "transport": "stdio-local",
+      "upstreamCommandHint": "npx -y @modelcontextprotocol/server-gdrive",
+      "docsUrl": "https://github.com/modelcontextprotocol/servers/tree/main/src/gdrive",
+      "publisher": "anthropic",
+      "verified": true
+    },
+    {
+      "slug": "zoom",
+      "displayName": "Zoom",
+      "description": "Zoom meetings, recordings, and transcripts.",
+      "transport": "remote",
+      "upstreamUrl": "https://mcp.zoom.us/",
+      "docsUrl": "https://developers.zoom.us/docs/mcp/",
+      "publisher": "zoom",
+      "verified": true
+    },
+    {
+      "slug": "jira",
+      "displayName": "Jira (standalone)",
+      "description": "Legacy stdio Jira MCP for on-prem users.",
+      "transport": "stdio-local",
+      "upstreamCommandHint": "npx -y @modelcontextprotocol/server-jira",
+      "docsUrl": "https://github.com/modelcontextprotocol/servers",
+      "publisher": "community",
+      "verified": false
+    }
+  ]
+}

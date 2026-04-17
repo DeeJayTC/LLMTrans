@@ -1,0 +1,14 @@
+apiVersion: v2
+name: llmtrans
+description: Drop-in multilingual proxy layer for LLMs and MCP servers
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - llm
+  - translation
+  - proxy
+  - mcp
+  - deepl
+sources:
+  - https://github.com/DeeJayTC/llmtrans
