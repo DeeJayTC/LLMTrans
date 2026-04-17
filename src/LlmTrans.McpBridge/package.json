@@ -2,7 +2,7 @@
   "name": "@llmtrans/mcp-bridge",
   "version": "0.1.0",
   "description": "Local stdio ↔ llmtrans translate-API bridge. Spawns your MCP server with your existing env; routes JSON-RPC through llmtrans for translation while upstream credentials stay on the machine.",
-  "license": "MIT",
+  "license": "AGPL-3.0-or-later",
   "type": "module",
   "bin": {
     "llmtrans-mcp-bridge": "dist/cli.js"

@@ -427,4 +427,13 @@ Things we would still like to build:
 
 ## License
 
-TBD.
+[GNU Affero General Public License v3.0](LICENSE).
+
+If you run a modified version of llmtrans as a network service, the AGPL
+requires you to make the corresponding source of your modifications
+available to the users of that service. Unmodified deployments are not
+affected.
+
+Copyright © 2026 Tim Cadenbach. `LlmTrans.Core` links against the
+[DeepL .NET SDK](https://github.com/DeepLcom/deepl-dotnet) (MIT) and other
+permissively-licensed dependencies listed in the project files.
