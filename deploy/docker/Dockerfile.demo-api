@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 # Builds the sample "chat-demo" backend. Kept intentionally tiny so newcomers can
-# read Program.cs + one Dockerfile and understand the llmtrans integration surface.
+# read Program.cs + one Dockerfile and understand the adaptiveapi integration surface.
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 

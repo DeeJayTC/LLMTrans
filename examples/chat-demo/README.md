@@ -1,15 +1,15 @@
 # chat-demo
 
-A tiny sample showing how an application integrates with llmtrans. It's two
+A tiny sample showing how an application integrates with adaptiveapi. It's two
 services:
 
 - `backend/` — a .NET minimal API (one `Program.cs`, ~200 lines) that calls
-  OpenAI's chat-completions API through llmtrans.
+  OpenAI's chat-completions API through adaptiveapi.
 - `ui/` — a Vue 3 chat interface with a language picker, stream / no-stream
   toggle, and a live request log.
 
 The integration surface is one-line: set the OpenAI base URL to
-`http://<llmtrans>/v1/<route-token>/` and add `X-LlmTrans-Target-Lang` to each
+`http://<adaptiveapi>/v1/<route-token>/` and add `X-AdaptiveApi-Target-Lang` to each
 request. Everything else — streaming, JSON shape, tool calls — passes through
 untouched.
 
@@ -27,10 +27,10 @@ Then open:
 
 - **Demo UI**:   <http://localhost:8100>
 - Demo API:     <http://localhost:5100/api/config>
-- llmtrans API: <http://localhost:8080>
-- llmtrans admin UI: <http://localhost:8000>
+- adaptiveapi API: <http://localhost:8080>
+- adaptiveapi admin UI: <http://localhost:8000>
 
-Without `--profile demo` the demo services aren't started — the main llmtrans
+Without `--profile demo` the demo services aren't started — the main adaptiveapi
 stack runs on its own, undisturbed.
 
 ### OpenAI key
@@ -38,7 +38,7 @@ stack runs on its own, undisturbed.
 The demo UI opens a key panel on first load. Paste your OpenAI key there —
 it's saved in the browser's `localStorage` and sent to the demo backend as
 an `X-Demo-OpenAI-Key` header on every request. The backend forwards it
-verbatim to OpenAI as `Authorization: Bearer …` through llmtrans.
+verbatim to OpenAI as `Authorization: Bearer …` through adaptiveapi.
 
 If you'd rather put the key on the server side, set `OPENAI_API_KEY` in
 `deploy/.env`. The UI's `/api/config` call sees `hasServerKey: true` and
@@ -51,7 +51,7 @@ skips the prompt.
 ### What the demo does
 
 The UI picks a language, posts a message to its own backend, which relays to
-llmtrans, which relays to OpenAI. llmtrans translates the user message into
+adaptiveapi, which relays to OpenAI. adaptiveapi translates the user message into
 English before OpenAI sees it, then translates OpenAI's reply back into the
 user's language before returning it. The UI sees only the final, localized
 answer — exactly what it'd see if you'd used the OpenAI SDK directly with an
@@ -64,18 +64,18 @@ that waits until a complete sentence is ready before translating.
 ## The integration, in code
 
 ```csharp
-// Point OpenAI's client at llmtrans. The token identifies your route + language
+// Point OpenAI's client at adaptiveapi. The token identifies your route + language
 // pair + configured translator (DeepL / LLM / passthrough).
-var http = factory.CreateClient("llmtrans");
-http.BaseAddress = new Uri($"{llmtransBaseUrl}/v1/{routeToken}/");
+var http = factory.CreateClient("adaptiveapi");
+http.BaseAddress = new Uri($"{adaptiveapiBaseUrl}/v1/{routeToken}/");
 
 using var req = new HttpRequestMessage(HttpMethod.Post, "chat/completions")
 {
     Content = JsonContent.Create(new { model = "gpt-4o-mini", messages = [...] }),
 };
 req.Headers.Add("Authorization", $"Bearer {OPENAI_API_KEY}");    // forwarded upstream verbatim
-req.Headers.Add("X-LlmTrans-Target-Lang", "de");                 // stripped before upstream
-req.Headers.Add("X-LlmTrans-Source-Lang", "en");                 // stripped before upstream
+req.Headers.Add("X-AdaptiveApi-Target-Lang", "de");                 // stripped before upstream
+req.Headers.Add("X-AdaptiveApi-Source-Lang", "en");                 // stripped before upstream
 
 var resp = await http.SendAsync(req);
 ```
@@ -86,8 +86,8 @@ authentication, streaming semantics, tool calls, error responses.
 ## Dev without Docker
 
 ```bash
-# terminal 1 — llmtrans API
-cd ../../src/LlmTrans.Api
+# terminal 1 — adaptiveapi API
+cd ../../src/AdaptiveApi.Api
 dotnet run --urls http://localhost:8080
 
 # terminal 2 — demo backend
@@ -116,10 +116,10 @@ backend stays cleanly separated.
 | `DEMO_LLM_LANGUAGE` | `en` | The upstream LLM's working language. |
 | `DEMO_TEMPERATURE` | `0.3` | Sampling temperature. |
 | `DEMO_SYSTEM_PROMPT` | concise assistant | System prompt, translated alongside user text. |
-| `DEV_FIXED_ROUTE_TOKEN` | `rt_dev_LOCALDEMO` | The route token llmtrans seeds + the demo uses. |
+| `DEV_FIXED_ROUTE_TOKEN` | `rt_dev_LOCALDEMO` | The route token adaptiveapi seeds + the demo uses. |
 | `DEMO_API_PORT` / `DEMO_UI_PORT` | `5100` / `8100` | Host-side ports for the demo pair. |
 
-To actually see translations, configure llmtrans with a translator backend
+To actually see translations, configure adaptiveapi with a translator backend
 (set `LLMTRANS_DEFAULT_TRANSLATOR=deepl` + `DEEPL_API_KEY`). Without that, the
 default `passthrough` translator means you'll get the upstream LLM's own
 output verbatim — useful for testing the routing shape but not the

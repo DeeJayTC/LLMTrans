@@ -1,16 +1,16 @@
-# llmtrans
+# AdaptiveAPI
 
 **Drop-in multilingual proxy for LLMs, MCP servers, and any HTTP+JSON API.**
 
 Most popular LLMs are trained predominantly on English: ask the same question
 in German or Japanese and the answer is measurably worse than in English, on
-the same model, for the same money. llmtrans sits between your app and the
+the same model, for the same money. AdaptiveAPI sits between your app and the
 vendor so the LLM keeps seeing English while your user keeps seeing their
 language. JSON shapes, code blocks, URLs, tool schemas, and streaming deltas
 survive the round trip. Works for MCP servers too.
 
 Change your SDK's base URL from `api.openai.com` / `api.anthropic.com` / your
-MCP server to llmtrans. That's it. Built on .NET 10 with the official
+MCP server to AdaptiveAPI. That's it. Built on .NET 10 with the official
 [DeepL .NET SDK](https://github.com/DeepLcom/deepl-dotnet) and a Vue 3 admin UI.
 
 ---
@@ -27,7 +27,7 @@ MCP server to llmtrans. That's it. Built on .NET 10 with the official
 - [The admin UI](#the-admin-ui)
 - [Configuration](#configuration)
 - [Deployment](#deployment)
-- [Extending llmtrans](#extending-llmtrans)
+- [Extending adaptiveapi](#extending-adaptiveapi)
 - [FAQ](#faq)
 - [Roadmap](#roadmap)
 - [License](#license)
@@ -37,8 +37,8 @@ MCP server to llmtrans. That's it. Built on .NET 10 with the official
 ## Quick start
 
 ```bash
-git clone https://github.com/DeeJayTC/llmtrans.git
-cd llmtrans/deploy
+git clone https://github.com/DeeJayTC/adaptiveapi.git
+cd adaptiveapi/deploy
 cp .env.example .env
 docker compose up --build                  # API + Admin UI
 docker compose --profile demo up --build   # adds the chat demo
@@ -54,8 +54,8 @@ notes live in [deploy/README.md](deploy/README.md).
 Run from source instead:
 
 ```bash
-cd src/LlmTrans.Api  &&  dotnet run --urls http://localhost:5000
-cd src/LlmTrans.Ui   &&  npm install && npm run dev     # UI on :5173
+cd src/AdaptiveApi.Api  &&  dotnet run --urls http://localhost:5000
+cd src/AdaptiveApi.Ui   &&  npm install && npm run dev     # UI on :5173
 ```
 
 ## How it fits into your code
@@ -70,13 +70,13 @@ from openai import OpenAI
 
 client = OpenAI(
     api_key="sk-...",                     # your existing OpenAI key, untouched
-    base_url="https://llmtrans.example.com/v1/rt_yourtenant_xxxxx",
+    base_url="https://adaptiveapi.example.com/v1/rt_yourtenant_xxxxx",
 )
 
 resp = client.chat.completions.create(
     model="gpt-4o-mini",
     messages=[{"role": "user", "content": "Was ist der Unterschied zwischen einem Array und einer Liste?"}],
-    extra_headers={"X-LlmTrans-Target-Lang": "de"},
+    extra_headers={"X-AdaptiveApi-Target-Lang": "de"},
 )
 print(resp.choices[0].message.content)
 # ↑ response arrives in German; the upstream model saw your question in English.
@@ -97,7 +97,7 @@ import anthropic
 
 client = anthropic.Anthropic(
     api_key="sk-ant-...",
-    base_url="https://llmtrans.example.com/anthropic/v1/rt_yourtenant_xxxxx",
+    base_url="https://adaptiveapi.example.com/anthropic/v1/rt_yourtenant_xxxxx",
 )
 
 message = client.messages.create(
@@ -105,14 +105,14 @@ message = client.messages.create(
     max_tokens=1024,
     system="Tu es un assistant serviable.",
     messages=[{"role": "user", "content": "Explique-moi le théorème de Pythagore."}],
-    extra_headers={"X-LlmTrans-Target-Lang": "fr"},
+    extra_headers={"X-AdaptiveApi-Target-Lang": "fr"},
 )
 ```
 
 ### MCP clients
 
 Point any MCP client (Claude Desktop, Cursor, Zed, VS Code + Continue) at
-llmtrans and every MCP server it connects to now speaks your language: tool
+adaptiveapi and every MCP server it connects to now speaks your language: tool
 descriptions, tool arguments, tool results, prompts.
 
 **Remote MCP servers** (Linear, Atlassian, Sentry, Stripe, Zoom, …): change
@@ -122,7 +122,7 @@ the `url` in your client's MCP config:
 {
   "mcpServers": {
     "linear-de": {
-      "url": "https://llmtrans.example.com/mcp/rt_yourtenant_xxxxx",
+      "url": "https://adaptiveapi.example.com/mcp/rt_yourtenant_xxxxx",
       "headers": {
         "Authorization": "Bearer <your-linear-oauth-token>"
       }
@@ -131,21 +131,21 @@ the `url` in your client's MCP config:
 }
 ```
 
-Your OAuth token flows upstream byte-identical; llmtrans never stores or logs it.
+Your OAuth token flows upstream byte-identical; adaptiveapi never stores or logs it.
 The admin UI's `/mcp/catalog` has a curated list of 15 popular servers
 pre-configured: one click and you get a copy-paste snippet for your client.
 
 **Stdio MCP servers** (GitHub, GitLab, Slack, Postgres, Filesystem, …) plug into
 the stateless translate API via a thin local bridge. The MCP client keeps spawning
 your existing upstream command, your credentials stay on your machine, and only
-JSON-RPC bodies flow through llmtrans for translation. The bridge CLI ships as
-[`@llmtrans/mcp-bridge`](src/LlmTrans.McpBridge/) on npm and as a static Go
+JSON-RPC bodies flow through adaptiveapi for translation. The bridge CLI ships as
+[`@adaptiveapi/mcp-bridge`](src/AdaptiveApi.McpBridge/) on npm and as a static Go
 binary for zero-Node environments.
 
 ### Generic HTTP+JSON API
 
 Any non-typed LLM or JSON API (Cohere, Mistral, local vLLM, your internal REST
-service) plugs in via a declarative route config. Tell llmtrans which JSON paths
+service) plugs in via a declarative route config. Tell adaptiveapi which JSON paths
 carry human text and it translates them in both directions:
 
 ```jsonc
@@ -171,24 +171,24 @@ carry human text and it translates them in both directions:
 }
 ```
 
-Then hit `POST /generic/<token>/` and llmtrans forwards the call with the selected
+Then hit `POST /generic/<token>/` and adaptiveapi forwards the call with the selected
 paths translated in both directions. Works for non-streaming JSON, SSE streams, or
 passthrough with translation off.
 
 ## Request-time controls
 
 Any of these headers override the route's defaults on a per-request basis. All
-`X-LlmTrans-*` headers are stripped before reaching upstream.
+`X-AdaptiveApi-*` headers are stripped before reaching upstream.
 
 | Header | Example | Purpose |
 | --- | --- | --- |
-| `X-LlmTrans-Target-Lang` | `de` | User language (what the caller speaks) |
-| `X-LlmTrans-Source-Lang` | `en` | Upstream/LLM working language |
-| `X-LlmTrans-Mode` | `bidirectional` / `request-only` / `response-only` / `off` | Direction toggle |
-| `X-LlmTrans-Translator` | `deepl` / `llm` / `passthrough` | Force a translator for this call |
-| `X-LlmTrans-Glossary` | `<glossary-id>` | Apply a specific glossary |
-| `X-LlmTrans-Style-Rule` | `<style-rule-id>` | Apply a DeepL v3 style rule |
-| `X-LlmTrans-Model-Type` | `quality_optimized` / `latency_optimized` / `prefer_quality_optimized` | DeepL model selector |
+| `X-AdaptiveApi-Target-Lang` | `de` | User language (what the caller speaks) |
+| `X-AdaptiveApi-Source-Lang` | `en` | Upstream/LLM working language |
+| `X-AdaptiveApi-Mode` | `bidirectional` / `request-only` / `response-only` / `off` | Direction toggle |
+| `X-AdaptiveApi-Translator` | `deepl` / `llm` / `passthrough` | Force a translator for this call |
+| `X-AdaptiveApi-Glossary` | `<glossary-id>` | Apply a specific glossary |
+| `X-AdaptiveApi-Style-Rule` | `<style-rule-id>` | Apply a DeepL v3 style rule |
+| `X-AdaptiveApi-Model-Type` | `quality_optimized` / `latency_optimized` / `prefer_quality_optimized` | DeepL model selector |
 
 ## The admin UI
 
@@ -224,7 +224,7 @@ ConfigMap. The common knobs:
 {
   "Database": {
     "Provider": "Sqlite",                     // Sqlite | Postgres | SqlServer
-    "Path": "llmtrans.db",
+    "Path": "adaptiveapi.db",
     "ConnectionString": "Host=postgres;..."
   },
   "Translators": {
@@ -242,7 +242,7 @@ ConfigMap. The common knobs:
   "Mcp": {
     "CatalogFile": "catalog/mcp-servers.json"
   },
-  "PublicBaseUrl": "https://llmtrans.example.com"
+  "PublicBaseUrl": "https://adaptiveapi.example.com"
 }
 ```
 
@@ -250,7 +250,7 @@ Env-var form for docker-compose / Kubernetes:
 
 ```env
 Database__Provider=Postgres
-Database__ConnectionString=Host=pg;Database=llmtrans;Username=...
+Database__ConnectionString=Host=pg;Database=adaptiveapi;Username=...
 Translators__Default=deepl
 Translators__DeepL__ApiKey=...
 ```
@@ -271,11 +271,11 @@ walkthrough in [deploy/README.md](deploy/README.md).
 ### Helm
 
 ```bash
-helm install llmtrans ./deploy/helm \
+helm install adaptiveapi ./deploy/helm \
   --set database.provider=Postgres \
-  --set database.existingSecret.name=llmtrans-db \
-  --set translators.existingSecret=llmtrans-translators \
-  --set ingress.host=llmtrans.yourdomain.com
+  --set database.existingSecret.name=adaptiveapi-db \
+  --set translators.existingSecret=adaptiveapi-translators \
+  --set ingress.host=adaptiveapi.yourdomain.com
 ```
 
 The chart provisions two Deployments (API + UI), a Service each, an Ingress with
@@ -283,7 +283,7 @@ SSE-friendly annotations, an HPA on CPU (2→10 replicas), a PDB with `minAvaila
 1`, and a PVC for SQLite when you haven't pointed at an external database. Full
 values reference in [deploy/helm/README.md](deploy/helm/README.md).
 
-## Extending llmtrans
+## Extending adaptiveapi
 
 The public repo covers the translation proxy, admin API, and UI. If you need
 organisation management, SCIM provisioning, or metered billing, extend the host
@@ -292,10 +292,10 @@ via a plugin.
 ### Plugin interface
 
 Any assembly loaded next to the API binary can contribute services and
-endpoints by implementing `LlmTrans.Core.Plugins.IWebPlugin`:
+endpoints by implementing `AdaptiveApi.Core.Plugins.IWebPlugin`:
 
 ```csharp
-using LlmTrans.Core.Plugins;
+using AdaptiveApi.Core.Plugins;
 
 public sealed class MyPlugin : IWebPlugin
 {
@@ -313,7 +313,7 @@ public sealed class MyPlugin : IWebPlugin
 }
 ```
 
-`LlmTrans.Api.PluginLoader` scans the base directory for `LlmTrans.*.dll`, plus
+`AdaptiveApi.Api.PluginLoader` scans the base directory for `AdaptiveApi.*.dll`, plus
 the opt-in `plugins/` subfolder, at startup. Discovered plugins run
 `ConfigureServices` before `builder.Build()` and `Map` afterwards. No
 compile-time coupling between the host and your plugin.
@@ -322,7 +322,7 @@ compile-time coupling between the host and your plugin.
 
 | Shape | How |
 | --- | --- |
-| **Same image** | Build a downstream image `FROM ghcr.io/deejaytc/llmtrans-api` and `COPY your-plugin.dll /app/`. |
+| **Same image** | Build a downstream image `FROM ghcr.io/deejaytc/adaptiveapi-api` and `COPY your-plugin.dll /app/`. |
 | **Plugin mount** | Mount a volume containing your plugin DLL at `/app/plugins/`. |
 | **Sidecar** | Run the API and a plugin-management container side by side in the same pod. |
 
@@ -342,17 +342,17 @@ to the upstream, and are never persisted or logged. Only a SHA-256 fingerprint
 of the `Authorization` header goes into the audit log for abuse correlation,
 never the value itself.
 
-**What does llmtrans store?**
+**What does adaptiveapi store?**
 Its own route tokens (hashed with Argon2id), its own translator-backend keys
 (DeepL and/or an LLM translator, encrypted at rest), and audit metadata (status,
 language pair, char counts, duration, integrity failures). Never request or
 response bodies by default.
 
 **What happens if a translation loses a placeholder?**
-Each translation round-trip has a hard invariant: every `<llmtrans id="TAG_n"/>`
+Each translation round-trip has a hard invariant: every `<adaptiveapi id="TAG_n"/>`
 tag emitted into the source must appear exactly once in the translator's output.
 If it doesn't, the pipeline falls back to the source text, increments
-`llmtrans_placeholder_integrity_failures_total`, and logs the failure. Alerts
+`adaptiveapi_placeholder_integrity_failures_total`, and logs the failure. Alerts
 should fire above 0.5% over the observation window.
 
 **Does streaming actually stream?**
@@ -372,11 +372,11 @@ aren't identifiers, and re-serialises. `tool_call_id`, `function.name`, and ever
 argument key are preserved verbatim. Extend the denylist per tenant via proxy
 rules (`{"toolArgKeys":["internal_note"]}`).
 
-**Can I run llmtrans without any translator?**
+**Can I run adaptiveapi without any translator?**
 Yes. The default `passthrough` translator leaves text unchanged, so the proxy
 becomes a header-auditing / route-token-gated forwarder. Useful while getting
 the routing set up or for passing-through specific routes with
-`X-LlmTrans-Mode: off`.
+`X-AdaptiveApi-Mode: off`.
 
 **PII redaction?**
 Opt-in via a proxy rule (`redactPii: true`). Detectors cover email,
@@ -388,7 +388,7 @@ can't emit it.
 
 For higher recall (names, locations, organisations, driver licences, etc.)
 set `PiiRedactor:Provider=presidio` and run the Microsoft Presidio Analyzer
-as an HTTP sidecar. llmtrans falls back to the regex redactor if Presidio is
+as an HTTP sidecar. adaptiveapi falls back to the regex redactor if Presidio is
 unreachable, so a temporary sidecar outage never opens the door for PII to
 reach the upstream.
 
@@ -429,11 +429,11 @@ Things we would still like to build:
 
 [GNU Affero General Public License v3.0](LICENSE).
 
-If you run a modified version of llmtrans as a network service, the AGPL
+If you run a modified version of adaptiveapi as a network service, the AGPL
 requires you to make the corresponding source of your modifications
 available to the users of that service. Unmodified deployments are not
 affected.
 
-Copyright © 2026 Tim Cadenbach. `LlmTrans.Core` links against the
+Copyright © 2026 Tim Cadenbach. `AdaptiveApi.Core` links against the
 [DeepL .NET SDK](https://github.com/DeepLcom/deepl-dotnet) (MIT) and other
 permissively-licensed dependencies listed in the project files.

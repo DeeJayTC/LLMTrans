@@ -6,7 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>ChatDemo</RootNamespace>
     <AssemblyName>ChatDemo</AssemblyName>
-    <UserSecretsId>llmtrans-chat-demo</UserSecretsId>
+    <UserSecretsId>adaptiveapi-chat-demo</UserSecretsId>
   </PropertyGroup>
 
 </Project>

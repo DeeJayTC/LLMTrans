@@ -1,5 +1,5 @@
 apiVersion: v2
-name: llmtrans
+name: adaptiveapi
 description: Drop-in multilingual proxy layer for LLMs and MCP servers
 type: application
 version: 0.1.0
@@ -11,4 +11,4 @@ keywords:
   - mcp
   - deepl
 sources:
-  - https://github.com/DeeJayTC/llmtrans
+  - https://github.com/DeeJayTC/adaptiveapi

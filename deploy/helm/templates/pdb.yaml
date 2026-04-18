@@ -2,11 +2,11 @@
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: {{ include "llmtrans.fullname" . }}-api
-  labels: {{- include "llmtrans.labels" . | nindent 4 }}
+  name: {{ include "adaptiveapi.fullname" . }}-api
+  labels: {{- include "adaptiveapi.labels" . | nindent 4 }}
 spec:
   minAvailable: {{ .Values.pdb.minAvailable }}
   selector:
-    matchLabels: {{- include "llmtrans.selectorLabels" . | nindent 6 }}
+    matchLabels: {{- include "adaptiveapi.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: api
 {{- end }}

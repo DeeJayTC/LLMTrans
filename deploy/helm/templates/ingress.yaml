@@ -2,8 +2,8 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: {{ include "llmtrans.fullname" . }}
-  labels: {{- include "llmtrans.labels" . | nindent 4 }}
+  name: {{ include "adaptiveapi.fullname" . }}
+  labels: {{- include "adaptiveapi.labels" . | nindent 4 }}
   {{- with .Values.ingress.annotations }}
   annotations: {{- toYaml . | nindent 4 }}
   {{- end }}
@@ -22,34 +22,34 @@ spec:
         paths:
           - path: /v1
             pathType: Prefix
-            backend: { service: { name: {{ include "llmtrans.fullname" . }}-api, port: { number: {{ .Values.service.apiPort }} } } }
+            backend: { service: { name: {{ include "adaptiveapi.fullname" . }}-api, port: { number: {{ .Values.service.apiPort }} } } }
           - path: /anthropic
             pathType: Prefix
-            backend: { service: { name: {{ include "llmtrans.fullname" . }}-api, port: { number: {{ .Values.service.apiPort }} } } }
+            backend: { service: { name: {{ include "adaptiveapi.fullname" . }}-api, port: { number: {{ .Values.service.apiPort }} } } }
           - path: /mcp
             pathType: Prefix
-            backend: { service: { name: {{ include "llmtrans.fullname" . }}-api, port: { number: {{ .Values.service.apiPort }} } } }
+            backend: { service: { name: {{ include "adaptiveapi.fullname" . }}-api, port: { number: {{ .Values.service.apiPort }} } } }
           - path: /mcp-translate
             pathType: Prefix
-            backend: { service: { name: {{ include "llmtrans.fullname" . }}-api, port: { number: {{ .Values.service.apiPort }} } } }
+            backend: { service: { name: {{ include "adaptiveapi.fullname" . }}-api, port: { number: {{ .Values.service.apiPort }} } } }
           - path: /generic
             pathType: Prefix
-            backend: { service: { name: {{ include "llmtrans.fullname" . }}-api, port: { number: {{ .Values.service.apiPort }} } } }
+            backend: { service: { name: {{ include "adaptiveapi.fullname" . }}-api, port: { number: {{ .Values.service.apiPort }} } } }
           - path: /admin
             pathType: Prefix
-            backend: { service: { name: {{ include "llmtrans.fullname" . }}-api, port: { number: {{ .Values.service.apiPort }} } } }
+            backend: { service: { name: {{ include "adaptiveapi.fullname" . }}-api, port: { number: {{ .Values.service.apiPort }} } } }
           - path: /saas
             pathType: Prefix
-            backend: { service: { name: {{ include "llmtrans.fullname" . }}-api, port: { number: {{ .Values.service.apiPort }} } } }
+            backend: { service: { name: {{ include "adaptiveapi.fullname" . }}-api, port: { number: {{ .Values.service.apiPort }} } } }
           - path: /scim
             pathType: Prefix
-            backend: { service: { name: {{ include "llmtrans.fullname" . }}-api, port: { number: {{ .Values.service.apiPort }} } } }
+            backend: { service: { name: {{ include "adaptiveapi.fullname" . }}-api, port: { number: {{ .Values.service.apiPort }} } } }
           - path: /healthz
             pathType: Exact
-            backend: { service: { name: {{ include "llmtrans.fullname" . }}-api, port: { number: {{ .Values.service.apiPort }} } } }
+            backend: { service: { name: {{ include "adaptiveapi.fullname" . }}-api, port: { number: {{ .Values.service.apiPort }} } } }
           {{- if .Values.ui.enabled }}
           - path: /
             pathType: Prefix
-            backend: { service: { name: {{ include "llmtrans.fullname" . }}-ui, port: { number: {{ .Values.service.uiPort }} } } }
+            backend: { service: { name: {{ include "adaptiveapi.fullname" . }}-ui, port: { number: {{ .Values.service.uiPort }} } } }
           {{- end }}
 {{- end }}

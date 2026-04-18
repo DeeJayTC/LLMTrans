@@ -1,0 +1,20 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/AdaptiveApi.Api/AdaptiveApi.Api.csproj" />
+    <Project Path="src/AdaptiveApi.Core/AdaptiveApi.Core.csproj" />
+    <Project Path="src/AdaptiveApi.Infrastructure/AdaptiveApi.Infrastructure.csproj" />
+    <Project Path="src/AdaptiveApi.Mcp.TranslateApi/AdaptiveApi.Mcp.TranslateApi.csproj" />
+    <Project Path="src/AdaptiveApi.Pii.Presidio/AdaptiveApi.Pii.Presidio.csproj" />
+    <Project Path="src/AdaptiveApi.Providers.Anthropic/AdaptiveApi.Providers.Anthropic.csproj" />
+    <Project Path="src/AdaptiveApi.Providers.Generic/AdaptiveApi.Providers.Generic.csproj" />
+    <Project Path="src/AdaptiveApi.Providers.Mcp/AdaptiveApi.Providers.Mcp.csproj" />
+    <Project Path="src/AdaptiveApi.Providers.OpenAI/AdaptiveApi.Providers.OpenAI.csproj" />
+    <Project Path="src/AdaptiveApi.Translators.DeepL/AdaptiveApi.Translators.DeepL.csproj" />
+    <Project Path="src/AdaptiveApi.Translators.Llm/AdaptiveApi.Translators.Llm.csproj" />
+    <Project Path="src/AdaptiveApi.Translators.Passthrough/AdaptiveApi.Translators.Passthrough.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/AdaptiveApi.Core.Tests/AdaptiveApi.Core.Tests.csproj" />
+    <Project Path="tests/AdaptiveApi.Integration.Tests/AdaptiveApi.Integration.Tests.csproj" />
+  </Folder>
+</Solution>

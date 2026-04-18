@@ -9,7 +9,7 @@ services:
       ASPNETCORE_URLS: http://+:8080
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
       Database__Provider: Sqlite
-      Database__Path: /data/llmtrans.db
+      Database__Path: /data/adaptiveapi.db
       Translators__Default: ${LLMTRANS_DEFAULT_TRANSLATOR:-passthrough}
       Translators__DeepL__ApiKey: ${DEEPL_API_KEY:-}
       Translators__DeepL__BaseUrl: ${DEEPL_BASE_URL:-https://api.deepl.com/}
@@ -19,7 +19,7 @@ services:
       Dev__FixedRouteToken: ${DEV_FIXED_ROUTE_TOKEN:-}
       PublicBaseUrl: ${PUBLIC_BASE_URL:-http://localhost:8080}
     volumes:
-      - llmtrans-data:/data
+      - adaptiveapi-data:/data
     expose:
       - "8080"
     ports:
@@ -43,7 +43,7 @@ services:
       - "${UI_PORT:-8000}:80"
     restart: unless-stopped
 
-  # Sample app: minimal .NET backend + Vue UI that talks to OpenAI through llmtrans.
+  # Sample app: minimal .NET backend + Vue UI that talks to OpenAI through adaptiveapi.
   # Optional — only starts when you run `docker compose --profile demo up`.
   demo-api:
     profiles: ["demo"]
@@ -93,20 +93,20 @@ services:
   #   image: redis:7-alpine
   #   command: ["redis-server", "--save", "60", "1", "--appendonly", "no"]
   #   volumes:
-  #     - llmtrans-redis:/data
+  #     - adaptiveapi-redis:/data
   #   restart: unless-stopped
 
   # Optional: Postgres for production-grade persistence.
   # To use: set api env Database__Provider=Postgres,
-  #             Database__ConnectionString=Host=postgres;Database=llmtrans;Username=llmtrans;Password=${POSTGRES_PASSWORD}
+  #             Database__ConnectionString=Host=postgres;Database=adaptiveapi;Username=adaptiveapi;Password=${POSTGRES_PASSWORD}
   # postgres:
   #   image: postgres:17-alpine
   #   environment:
-  #     POSTGRES_DB: llmtrans
-  #     POSTGRES_USER: llmtrans
+  #     POSTGRES_DB: adaptiveapi
+  #     POSTGRES_USER: adaptiveapi
   #     POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?postgres password required}
   #   volumes:
-  #     - llmtrans-postgres:/var/lib/postgresql/data
+  #     - adaptiveapi-postgres:/var/lib/postgresql/data
   #   restart: unless-stopped
 
   # Optional: OTLP collector — set api env OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
@@ -118,6 +118,6 @@ services:
   #   restart: unless-stopped
 
 volumes:
-  llmtrans-data:
-  # llmtrans-redis:
-  # llmtrans-postgres:
+  adaptiveapi-data:
+  # adaptiveapi-redis:
+  # adaptiveapi-postgres:

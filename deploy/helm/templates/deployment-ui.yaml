@@ -2,17 +2,17 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "llmtrans.fullname" . }}-ui
-  labels: {{- include "llmtrans.labels" . | nindent 4 }}
+  name: {{ include "adaptiveapi.fullname" . }}-ui
+  labels: {{- include "adaptiveapi.labels" . | nindent 4 }}
     app.kubernetes.io/component: ui
 spec:
   replicas: {{ .Values.ui.replicaCount }}
   selector:
-    matchLabels: {{- include "llmtrans.selectorLabels" . | nindent 6 }}
+    matchLabels: {{- include "adaptiveapi.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: ui
   template:
     metadata:
-      labels: {{- include "llmtrans.selectorLabels" . | nindent 8 }}
+      labels: {{- include "adaptiveapi.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: ui
     spec:
       containers:

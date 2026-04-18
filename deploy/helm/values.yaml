@@ -1,15 +1,15 @@
-# Default values for the llmtrans Helm chart. See templates/ for how each option is consumed.
+# Default values for the adaptiveapi Helm chart. See templates/ for how each option is consumed.
 # Values that vary between self-host and SaaS are grouped under `edition.*`.
 
 image:
-  repository: ghcr.io/deejaytc/llmtrans-api
+  repository: ghcr.io/deejaytc/adaptiveapi-api
   tag: latest
   pullPolicy: IfNotPresent
 
 ui:
   enabled: true
   image:
-    repository: ghcr.io/deejaytc/llmtrans-ui
+    repository: ghcr.io/deejaytc/adaptiveapi-ui
     tag: latest
     pullPolicy: IfNotPresent
   replicaCount: 2
@@ -74,10 +74,10 @@ service:
 ingress:
   enabled: true
   className: nginx
-  host: llmtrans.example.com
+  host: adaptiveapi.example.com
   tls:
     enabled: true
-    secretName: llmtrans-tls
+    secretName: adaptiveapi-tls
   annotations:
     # SSE requires disabled buffering
     nginx.ingress.kubernetes.io/proxy-buffering: "off"

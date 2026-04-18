@@ -3,7 +3,7 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue';
 
 interface LanguageInfo { code: string; name: string; }
 interface ConfigResponse {
-  llmtrans: { baseUrl: string };
+  adaptiveapi: { baseUrl: string };
   openAiModel: string;
   languages: LanguageInfo[];
   hasServerKey: boolean;
@@ -66,7 +66,7 @@ const selectedRoute = computed(() =>
 );
 
 // --- OpenAI key handling ---
-const STORAGE_KEY = 'llmtrans-demo.openai-key';
+const STORAGE_KEY = 'adaptiveapi-demo.openai-key';
 const userKey = ref<string>('');
 const keyDraft = ref<string>('');
 const keyPanelOpen = ref(false);
@@ -146,21 +146,21 @@ function debugBundleToPipelineEntries(bundle: DebugBundle, baseMs: number): Pipe
   const final = bundle.bodies?.finalResponse ?? null;
 
   if (pre)
-    entries.push({ step: 'llmtrans_debug_request_pre', timestampIso: now, sinceStartMs: baseMs,
+    entries.push({ step: 'adaptiveapi_debug_request_pre', timestampIso: now, sinceStartMs: baseMs,
       metadata: { body: pre, bytes: pre.length } });
   if (post && post !== pre)
-    entries.push({ step: 'llmtrans_debug_request_to_openai', timestampIso: now, sinceStartMs: baseMs,
+    entries.push({ step: 'adaptiveapi_debug_request_to_openai', timestampIso: now, sinceStartMs: baseMs,
       metadata: { body: post, bytes: post.length } });
   if (upstream)
-    entries.push({ step: 'llmtrans_debug_openai_response', timestampIso: now, sinceStartMs: baseMs,
+    entries.push({ step: 'adaptiveapi_debug_openai_response', timestampIso: now, sinceStartMs: baseMs,
       metadata: { body: upstream, bytes: upstream.length } });
   if (final && final !== upstream)
-    entries.push({ step: 'llmtrans_debug_final_to_user', timestampIso: now, sinceStartMs: baseMs,
+    entries.push({ step: 'adaptiveapi_debug_final_to_user', timestampIso: now, sinceStartMs: baseMs,
       metadata: { body: final, bytes: final.length } });
 
   (bundle.translatorCalls ?? []).forEach((call, i) => {
     entries.push({
-      step: `llmtrans_debug_translator_${i + 1}`,
+      step: `adaptiveapi_debug_translator_${i + 1}`,
       timestampIso: now,
       sinceStartMs: baseMs,
       metadata: {
@@ -202,7 +202,7 @@ onMounted(async () => {
     const resp = await fetch('/api/routes');
     routes.value = await resp.json();
     if (routes.value.length > 0) routeId.value = routes.value[0]!.id;
-    if (routes.value.length === 0) error.value = 'No OpenAI-chat routes found in llmtrans admin. Create one in the admin UI first.';
+    if (routes.value.length === 0) error.value = 'No OpenAI-chat routes found in adaptiveapi admin. Create one in the admin UI first.';
   } catch {
     error.value = 'Could not load routes from /api/routes.';
   }
@@ -351,7 +351,7 @@ function handleSseBlock(block: string, assistant: ChatTurn) {
   }
 
   // Trailing debug event with raw OpenAI + DeepL payloads (opt-in via config).
-  if (eventName === 'x-llmtrans-debug') {
+  if (eventName === 'x-adaptiveapi-debug') {
     try {
       const bundle = JSON.parse(data) as DebugBundle;
       const baseMs = assistant.pipeline?.at(-1)?.sinceStartMs ?? 0;
@@ -362,12 +362,12 @@ function handleSseBlock(block: string, assistant: ChatTurn) {
     return;
   }
 
-  // llmtrans emits this at the end of a translated SSE stream with the per-stage
+  // adaptiveapi emits this at the end of a translated SSE stream with the per-stage
   // timings that couldn't fit into the Server-Timing header (which was flushed
   // before the body began). We flatten them into the pipeline timeline so the
   // user sees translate-request / translate-response-stream alongside the
   // demo-observed steps.
-  if (eventName === 'x-llmtrans-timing') {
+  if (eventName === 'x-adaptiveapi-timing') {
     try {
       const parsed = JSON.parse(data) as {
         entries: Array<{ name: string; durationMs: number; desc: string | null }>;
@@ -376,7 +376,7 @@ function handleSseBlock(block: string, assistant: ChatTurn) {
       };
       const baseMs = assistant.pipeline?.at(-1)?.sinceStartMs ?? 0;
       const entries: PipelineEntry[] = parsed.entries.map((e) => ({
-        step: `llmtrans_${e.name}`,
+        step: `adaptiveapi_${e.name}`,
         timestampIso: new Date().toISOString(),
         sinceStartMs: baseMs,
         metadata: {
@@ -385,7 +385,7 @@ function handleSseBlock(block: string, assistant: ChatTurn) {
         },
       }));
       entries.push({
-        step: 'llmtrans_stream_metrics',
+        step: 'adaptiveapi_stream_metrics',
         timestampIso: new Date().toISOString(),
         sinceStartMs: baseMs,
         metadata: parsed.stream as unknown as Record<string, unknown>,
@@ -415,9 +415,9 @@ function clearHistory() {
     <!-- Header -->
     <header style="padding-bottom: 12px; border-bottom: 1px solid #e4e8ee;">
       <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
-        <div style="font-size: 18px; font-weight: 600; color: #1d47e8;">llmtrans · chat demo</div>
+        <div style="font-size: 18px; font-weight: 600; color: #1d47e8;">adaptiveapi · chat demo</div>
         <div v-if="config" style="font-size: 12px; color: #4a5463;">
-          via <code>{{ config.llmtrans.baseUrl }}</code> · model <code>{{ config.openAiModel }}</code>
+          via <code>{{ config.adaptiveapi.baseUrl }}</code> · model <code>{{ config.openAiModel }}</code>
         </div>
         <span
           v-if="config?.includePayloads"
@@ -449,7 +449,7 @@ function clearHistory() {
         <p style="font-size: 12px; color: #4a5463; margin: 0 0 10px;">
           Stored in this browser's <code>localStorage</code> and sent as
           <code>X-Demo-OpenAI-Key</code> on every request. The backend forwards it
-          verbatim through llmtrans to OpenAI; llmtrans does not persist it.
+          verbatim through adaptiveapi to OpenAI; adaptiveapi does not persist it.
           <strong style="color: #b91c1c;">Localhost-only.</strong>
         </p>
 
@@ -517,7 +517,7 @@ function clearHistory() {
           Add an OpenAI API key above to start the demo.
         </div>
         <div v-else-if="routes.length === 0" style="color: #b91c1c;">
-          No OpenAI-chat routes are configured on the llmtrans admin yet.
+          No OpenAI-chat routes are configured on the adaptiveapi admin yet.
         </div>
         <div v-else>
           Type a message. Pick a language and a route. Each reply shows a pipeline
@@ -559,7 +559,7 @@ function clearHistory() {
             >
               <div style="display: grid; grid-template-columns: 70px 230px 1fr; gap: 8px; align-items: baseline;">
                 <span style="color: #4a5463;">+{{ String(entry.sinceStartMs).padStart(4, ' ') }}ms</span>
-                <span :style="{ color: entry.step.startsWith('llmtrans_debug_') ? '#8a2be2' : '#1d47e8' }">
+                <span :style="{ color: entry.step.startsWith('adaptiveapi_debug_') ? '#8a2be2' : '#1d47e8' }">
                   {{ entry.step }}
                 </span>
                 <span style="color: #4a5463; word-break: break-word;">{{ formatMeta(entry.metadata) }}</span>

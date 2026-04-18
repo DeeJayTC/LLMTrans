@@ -1,11 +1,11 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "llmtrans.fullname" . }}-api
-  labels: {{- include "llmtrans.labels" . | nindent 4 }}
+  name: {{ include "adaptiveapi.fullname" . }}-api
+  labels: {{- include "adaptiveapi.labels" . | nindent 4 }}
 spec:
   type: {{ .Values.service.type }}
-  selector: {{- include "llmtrans.selectorLabels" . | nindent 4 }}
+  selector: {{- include "adaptiveapi.selectorLabels" . | nindent 4 }}
     app.kubernetes.io/component: api
   ports:
     - name: http
@@ -16,11 +16,11 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "llmtrans.fullname" . }}-ui
-  labels: {{- include "llmtrans.labels" . | nindent 4 }}
+  name: {{ include "adaptiveapi.fullname" . }}-ui
+  labels: {{- include "adaptiveapi.labels" . | nindent 4 }}
 spec:
   type: {{ .Values.service.type }}
-  selector: {{- include "llmtrans.selectorLabels" . | nindent 4 }}
+  selector: {{- include "adaptiveapi.selectorLabels" . | nindent 4 }}
     app.kubernetes.io/component: ui
   ports:
     - name: http

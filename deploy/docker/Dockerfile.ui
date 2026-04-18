@@ -2,10 +2,10 @@
 FROM node:22-alpine AS build
 WORKDIR /src
 
-COPY src/LlmTrans.Ui/package.json src/LlmTrans.Ui/package-lock.json* ./
+COPY src/AdaptiveApi.Ui/package.json src/AdaptiveApi.Ui/package-lock.json* ./
 RUN npm ci --no-audit --no-fund
 
-COPY src/LlmTrans.Ui/ ./
+COPY src/AdaptiveApi.Ui/ ./
 RUN npm run build
 
 # Serve the built SPA via nginx; proxy /admin and /v1 and /anthropic and /mcp etc. to the API.

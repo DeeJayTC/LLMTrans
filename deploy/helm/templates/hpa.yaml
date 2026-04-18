@@ -2,13 +2,13 @@
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: {{ include "llmtrans.fullname" . }}-api
-  labels: {{- include "llmtrans.labels" . | nindent 4 }}
+  name: {{ include "adaptiveapi.fullname" . }}-api
+  labels: {{- include "adaptiveapi.labels" . | nindent 4 }}
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: {{ include "llmtrans.fullname" . }}-api
+    name: {{ include "adaptiveapi.fullname" . }}-api
   minReplicas: {{ .Values.autoscaling.minReplicas }}
   maxReplicas: {{ .Values.autoscaling.maxReplicas }}
   metrics:

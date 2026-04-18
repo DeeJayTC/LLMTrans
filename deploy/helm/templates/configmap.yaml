@@ -1,19 +1,19 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ include "llmtrans.fullname" . }}-config
-  labels: {{- include "llmtrans.labels" . | nindent 4 }}
+  name: {{ include "adaptiveapi.fullname" . }}-config
+  labels: {{- include "adaptiveapi.labels" . | nindent 4 }}
 data:
   ASPNETCORE_URLS: "http://+:{{ .Values.api.port }}"
   ASPNETCORE_ENVIRONMENT: "Production"
-  LlmTrans__Edition: {{ .Values.edition | quote }}
-  LlmTrans__Saas__MultiOrg: {{ .Values.saas.multiOrg | quote }}
-  LlmTrans__Saas__Billing: {{ .Values.saas.billing | quote }}
-  LlmTrans__Saas__Scim: {{ .Values.saas.scim | quote }}
-  LlmTrans__Saas__BillingAdapter: {{ .Values.saas.billingAdapter | quote }}
+  AdaptiveApi__Edition: {{ .Values.edition | quote }}
+  AdaptiveApi__Saas__MultiOrg: {{ .Values.saas.multiOrg | quote }}
+  AdaptiveApi__Saas__Billing: {{ .Values.saas.billing | quote }}
+  AdaptiveApi__Saas__Scim: {{ .Values.saas.scim | quote }}
+  AdaptiveApi__Saas__BillingAdapter: {{ .Values.saas.billingAdapter | quote }}
   Database__Provider: {{ .Values.database.provider | quote }}
   {{- if eq .Values.database.provider "Sqlite" }}
-  Database__Path: "/data/llmtrans.db"
+  Database__Path: "/data/adaptiveapi.db"
   {{- end }}
   Translators__Default: {{ .Values.translators.default | quote }}
   {{- range $meter, $item := .Values.saas.stripe.subscriptionItemByMeter }}

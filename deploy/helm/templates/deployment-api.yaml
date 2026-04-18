@@ -1,17 +1,17 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "llmtrans.fullname" . }}-api
-  labels: {{- include "llmtrans.labels" . | nindent 4 }}
+  name: {{ include "adaptiveapi.fullname" . }}-api
+  labels: {{- include "adaptiveapi.labels" . | nindent 4 }}
     app.kubernetes.io/component: api
 spec:
   replicas: {{ .Values.api.replicaCount }}
   selector:
-    matchLabels: {{- include "llmtrans.selectorLabels" . | nindent 6 }}
+    matchLabels: {{- include "adaptiveapi.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: api
   template:
     metadata:
-      labels: {{- include "llmtrans.selectorLabels" . | nindent 8 }}
+      labels: {{- include "adaptiveapi.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: api
     spec:
       securityContext: {{- toYaml .Values.podSecurityContext | nindent 8 }}
@@ -24,7 +24,7 @@ spec:
               containerPort: {{ .Values.api.port }}
           envFrom:
             - configMapRef:
-                name: {{ include "llmtrans.fullname" . }}-config
+                name: {{ include "adaptiveapi.fullname" . }}-config
           env:
             {{- if and (ne .Values.database.provider "Sqlite") .Values.database.existingSecret.name }}
             - name: Database__ConnectionString
@@ -69,14 +69,14 @@ spec:
       volumes:
         - name: data
           persistentVolumeClaim:
-            claimName: {{ include "llmtrans.fullname" . }}-data
+            claimName: {{ include "adaptiveapi.fullname" . }}-data
       {{- end }}
 ---
 {{- if eq .Values.database.provider "Sqlite" }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: {{ include "llmtrans.fullname" . }}-data
+  name: {{ include "adaptiveapi.fullname" . }}-data
 spec:
   accessModes: ["ReadWriteOnce"]
   resources:

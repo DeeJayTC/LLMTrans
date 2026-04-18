@@ -1,6 +1,6 @@
-# llmtrans — docker compose guide
+# AdaptiveAPI — docker compose guide
 
-Everything you need to run llmtrans locally or on a single VM: API (.NET 10),
+Everything you need to run AdaptiveAPI locally or on a single VM: API (.NET 10),
 Admin UI (nginx), optional chat demo, optional Postgres / Redis / OpenTelemetry.
 Default storage is SQLite on a named volume so there is nothing to set up on
 first run.
@@ -24,11 +24,11 @@ Once healthy:
 | Chat demo API  | <http://localhost:5100>            | `--profile demo`                  |
 
 Tear it all down with `docker compose down`. Add `-v` to also drop the SQLite
-volume (`llmtrans-data`) and start fresh.
+volume (`adaptiveapi-data`) and start fresh.
 
 ## The chat demo
 
-A small .NET backend + Vue UI that talks to OpenAI through llmtrans, so you
+A small .NET backend + Vue UI that talks to OpenAI through AdaptiveAPI, so you
 can see the full pipeline end-to-end (user prompt → translated request →
 OpenAI → translated reply → user) with per-stage timings.
 
@@ -58,7 +58,7 @@ so the proxy round-trips without a translator key. To actually translate, set
 ```bash
 curl -s http://localhost:8080/v1/rt_dev_LOCALDEMO/chat/completions \
   -H "Authorization: Bearer $OPENAI_API_KEY" \
-  -H "X-LlmTrans-Target-Lang: de" \
+  -H "X-AdaptiveApi-Target-Lang: de" \
   -H "Content-Type: application/json" \
   -d '{
         "model": "gpt-4o-mini",
@@ -79,7 +79,7 @@ to German before returning.
    VS Code + Continue / raw), paste into that client's MCP config,
    replacing `<your-route-token>` with the copied token.
 
-Stdio-local servers also need the `@llmtrans/mcp-bridge` npm package.
+Stdio-local servers also need the `@adaptiveapi/mcp-bridge` npm package.
 The bridge is not yet published; until it ships, the stdio path is a
 Flow B API target only (`POST /mcp-translate/<token>`).
 
@@ -106,7 +106,7 @@ then on the `api` service set:
 ```yaml
 environment:
   Database__Provider: Postgres
-  Database__ConnectionString: Host=postgres;Database=llmtrans;Username=llmtrans;Password=${POSTGRES_PASSWORD}
+  Database__ConnectionString: Host=postgres;Database=adaptiveapi;Username=adaptiveapi;Password=${POSTGRES_PASSWORD}
   Redis__ConnectionString: redis:6379
 ```
 
@@ -119,8 +119,8 @@ over the per-query tenant filter).
 
 Uncomment `otel-collector` and set `OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317`
 on the `api` service. The API emits spans per pipeline stage, metrics
-(`llmtrans_requests_total`, `llmtrans_placeholder_integrity_failures_total`,
-`llmtrans_stream_ttft_ms`), and structured logs without message content by
+(`adaptiveapi_requests_total`, `adaptiveapi_placeholder_integrity_failures_total`,
+`adaptiveapi_stream_ttft_ms`), and structured logs without message content by
 default.
 
 ## Production notes

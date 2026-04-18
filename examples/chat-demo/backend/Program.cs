@@ -1,9 +1,9 @@
-// ChatDemo — a minimal sample app demonstrating how to use llmtrans from a .NET service.
+// ChatDemo — a minimal sample app demonstrating how to use adaptiveapi from a .NET service.
 //
 // The shape is deliberately tiny so the integration is legible: the only special thing
-// this backend does is set the OpenAI base URL to `http://llmtrans/v1/<route-token>` and
-// add `X-LlmTrans-Target-Lang` to each request. Everything else — streaming, tool calls,
-// error handling — passes through llmtrans unchanged.
+// this backend does is set the OpenAI base URL to `http://adaptiveapi/v1/<route-token>` and
+// add `X-AdaptiveApi-Target-Lang` to each request. Everything else — streaming, tool calls,
+// error handling — passes through adaptiveapi unchanged.
 
 using System.Diagnostics;
 using System.Globalization;
@@ -18,7 +18,7 @@ var builder = WebApplication.CreateBuilder(args);
 var demoCfg = builder.Configuration.GetSection("Demo").Get<DemoOptions>() ?? new DemoOptions();
 builder.Services.AddSingleton(demoCfg);
 
-// HttpClient pointed at llmtrans's admin API. Used to discover routes and issue
+// HttpClient pointed at adaptiveapi's admin API. Used to discover routes and issue
 // tokens. Never exposes an admin credential to the browser.
 builder.Services.AddHttpClient("admin")
     .ConfigureHttpClient(client =>
@@ -29,7 +29,7 @@ builder.Services.AddHttpClient("admin")
 
 // HttpClient used for the actual chat calls. Base URL is set per-request because it
 // varies by route (it embeds the route token in the path).
-builder.Services.AddHttpClient("llmtrans")
+builder.Services.AddHttpClient("adaptiveapi")
     .ConfigureHttpClient(client => client.Timeout = TimeSpan.FromSeconds(120));
 
 builder.Services.AddSingleton<RouteDirectory>();
@@ -46,7 +46,7 @@ app.MapGet("/healthz", () => Results.Ok(new { status = "ok" }));
 
 app.MapGet("/api/config", (DemoOptions cfg) => Results.Ok(new
 {
-    llmtrans = new
+    adaptiveapi = new
     {
         baseUrl = cfg.LlmtransBaseUrl,
     },
@@ -114,7 +114,7 @@ app.MapPost("/api/chat", async (
         ["direction"] = route.Direction,
     });
 
-    var http = factory.CreateClient("llmtrans");
+    var http = factory.CreateClient("adaptiveapi");
     http.BaseAddress = new Uri($"{cfg.LlmtransBaseUrl.TrimEnd('/')}/v1/{route.Token}/");
 
     using var llmReq = new HttpRequestMessage(HttpMethod.Post, "chat/completions")
@@ -124,7 +124,7 @@ app.MapPost("/api/chat", async (
     ApplyCommonHeaders(llmReq, req, cfg, openAiKey, route);
 
     var sw = Stopwatch.StartNew();
-    pipeline.Push("forwarded_to_llmtrans", new Dictionary<string, object?>
+    pipeline.Push("forwarded_to_adaptiveapi", new Dictionary<string, object?>
     {
         ["endpoint"] = "POST /v1/{token}/chat/completions",
         ["streaming"] = false,
@@ -133,14 +133,14 @@ app.MapPost("/api/chat", async (
     using var resp = await http.SendAsync(llmReq, ct);
     sw.Stop();
 
-    pipeline.Push("llmtrans_response_received", new Dictionary<string, object?>
+    pipeline.Push("adaptiveapi_response_received", new Dictionary<string, object?>
     {
         ["status"] = (int)resp.StatusCode,
         ["totalMs"] = sw.ElapsedMilliseconds,
         ["contentType"] = resp.Content.Headers.ContentType?.MediaType,
     });
     foreach (var serverStep in ParseServerTiming(resp.Headers.GetValues("Server-Timing")))
-        pipeline.Push($"llmtrans_{serverStep.Name}", new Dictionary<string, object?>
+        pipeline.Push($"adaptiveapi_{serverStep.Name}", new Dictionary<string, object?>
         {
             ["durationMs"] = serverStep.DurationMs,
             ["desc"] = serverStep.Description,
@@ -168,7 +168,7 @@ app.MapPost("/api/chat", async (
     // than round-tripping to a strongly-typed DTO.
     var payload = JsonNode.Parse(body) as JsonObject ?? new JsonObject();
 
-    // If llmtrans returned a `_debug` field (because we sent X-LlmTrans-Debug: payloads),
+    // If adaptiveapi returned a `_debug` field (because we sent X-AdaptiveApi-Debug: payloads),
     // hoist its contents into their own pipeline entries so the UI can render them
     // inline with everything else.
     if (payload["_debug"] is JsonObject debugNode)
@@ -234,7 +234,7 @@ app.MapPost("/api/chat/stream", async (
         ["direction"] = route.Direction,
     });
 
-    var http = factory.CreateClient("llmtrans");
+    var http = factory.CreateClient("adaptiveapi");
     http.BaseAddress = new Uri($"{cfg.LlmtransBaseUrl.TrimEnd('/')}/v1/{route.Token}/");
 
     using var llmReq = new HttpRequestMessage(HttpMethod.Post, "chat/completions")
@@ -244,7 +244,7 @@ app.MapPost("/api/chat/stream", async (
     ApplyCommonHeaders(llmReq, req, cfg, openAiKey, route);
 
     var sw = Stopwatch.StartNew();
-    pipeline.Push("forwarded_to_llmtrans", new Dictionary<string, object?>
+    pipeline.Push("forwarded_to_adaptiveapi", new Dictionary<string, object?>
     {
         ["endpoint"] = "POST /v1/{token}/chat/completions",
         ["streaming"] = true,
@@ -252,14 +252,14 @@ app.MapPost("/api/chat/stream", async (
 
     using var resp = await http.SendAsync(llmReq, HttpCompletionOption.ResponseHeadersRead, ct);
 
-    pipeline.Push("llmtrans_response_started", new Dictionary<string, object?>
+    pipeline.Push("adaptiveapi_response_started", new Dictionary<string, object?>
     {
         ["status"] = (int)resp.StatusCode,
         ["headersMs"] = sw.ElapsedMilliseconds,
         ["contentType"] = resp.Content.Headers.ContentType?.MediaType,
     });
     foreach (var step in ParseServerTiming(resp.Headers.GetValues("Server-Timing")))
-        pipeline.Push($"llmtrans_{step.Name}", new Dictionary<string, object?>
+        pipeline.Push($"adaptiveapi_{step.Name}", new Dictionary<string, object?>
         {
             ["durationMs"] = step.DurationMs,
             ["desc"] = step.Description,
@@ -319,10 +319,10 @@ static async Task WritePipelineEventAsync(Stream stream, IReadOnlyList<PipelineE
     await stream.FlushAsync(ct);
 }
 
-/// Expands the `_debug` object llmtrans returns when `X-LlmTrans-Debug: payloads`
+/// Expands the `_debug` object adaptiveapi returns when `X-AdaptiveApi-Debug: payloads`
 /// is set into a flat sequence of pipeline entries. Keeps the display model the
 /// same whether the data arrived as an inline JSON field (non-streaming) or as a
-/// trailing `event: x-llmtrans-debug` SSE event (streaming — handled in the UI).
+/// trailing `event: x-adaptiveapi-debug` SSE event (streaming — handled in the UI).
 static IEnumerable<(string Step, IReadOnlyDictionary<string, object?> Metadata)>
     BuildDebugPipelineEntries(JsonObject debugNode)
 {
@@ -334,16 +334,16 @@ static IEnumerable<(string Step, IReadOnlyDictionary<string, object?> Metadata)>
         var final = bodies["finalResponse"]?.GetValue<string>();
 
         if (pre is not null)
-            yield return ("llmtrans_debug_request_pre",
+            yield return ("adaptiveapi_debug_request_pre",
                 new Dictionary<string, object?> { ["body"] = pre, ["bytes"] = pre.Length });
         if (post is not null && post != pre)
-            yield return ("llmtrans_debug_request_to_openai",
+            yield return ("adaptiveapi_debug_request_to_openai",
                 new Dictionary<string, object?> { ["body"] = post, ["bytes"] = post.Length });
         if (upstream is not null)
-            yield return ("llmtrans_debug_openai_response",
+            yield return ("adaptiveapi_debug_openai_response",
                 new Dictionary<string, object?> { ["body"] = upstream, ["bytes"] = upstream.Length });
         if (final is not null && final != upstream)
-            yield return ("llmtrans_debug_final_to_user",
+            yield return ("adaptiveapi_debug_final_to_user",
                 new Dictionary<string, object?> { ["body"] = final, ["bytes"] = final.Length });
     }
 
@@ -363,7 +363,7 @@ static IEnumerable<(string Step, IReadOnlyDictionary<string, object?> Metadata)>
                     target = p["target"]?.GetValue<string>(),
                 })
                 .ToArray();
-            yield return ($"llmtrans_debug_translator_{++idx}",
+            yield return ($"adaptiveapi_debug_translator_{++idx}",
                 new Dictionary<string, object?>
                 {
                     ["direction"] = direction,
@@ -448,18 +448,18 @@ static void ApplyCommonHeaders(HttpRequestMessage req, ChatRequest chat, DemoOpt
     var userLang = chat.Language ?? route.UserLanguage;
     var llmLang = cfg.LlmLanguage;
     if (!string.IsNullOrEmpty(userLang))
-        req.Headers.TryAddWithoutValidation("X-LlmTrans-Target-Lang", userLang);
+        req.Headers.TryAddWithoutValidation("X-AdaptiveApi-Target-Lang", userLang);
     if (!string.IsNullOrEmpty(llmLang))
-        req.Headers.TryAddWithoutValidation("X-LlmTrans-Source-Lang", llmLang);
+        req.Headers.TryAddWithoutValidation("X-AdaptiveApi-Source-Lang", llmLang);
 
     if (!string.IsNullOrEmpty(chat.StreamStrategy))
-        req.Headers.TryAddWithoutValidation("X-LlmTrans-Stream-Strategy", chat.StreamStrategy);
+        req.Headers.TryAddWithoutValidation("X-AdaptiveApi-Stream-Strategy", chat.StreamStrategy);
 
-    // Opt in to debug payloads if the demo operator has configured it. llmtrans strips
+    // Opt in to debug payloads if the demo operator has configured it. adaptiveapi strips
     // this header before forwarding to OpenAI so upstream never sees the request for
     // internals.
     if (cfg.IncludePayloads)
-        req.Headers.TryAddWithoutValidation("X-LlmTrans-Debug", "payloads");
+        req.Headers.TryAddWithoutValidation("X-AdaptiveApi-Debug", "payloads");
 }
 
 static string ResolveKey(HttpContext context, DemoOptions cfg)
@@ -505,9 +505,9 @@ public sealed class DemoOptions
         "You are a friendly assistant. Keep answers short and concrete.";
     public string[] AllowedOrigins { get; set; } = new[] { "http://localhost:8100", "http://localhost:5174" };
 
-    /// WARNING: when true, the demo backend sends `X-LlmTrans-Debug: payloads` and
+    /// WARNING: when true, the demo backend sends `X-AdaptiveApi-Debug: payloads` and
     /// includes the actual OpenAI + DeepL request/response bodies in its pipeline
-    /// log so you can inspect what llmtrans translated. Only safe on a developer
+    /// log so you can inspect what adaptiveapi translated. Only safe on a developer
     /// machine: payloads can contain the user's original message, the upstream LLM's
     /// full reply, and the DeepL source/target strings for every translation site.
     /// Set this to false before exposing the demo to anyone else's traffic.
@@ -569,7 +569,7 @@ public sealed class PipelineRecorder
 
 /// Discovers routes from the admin API and lazily issues tokens per route, caching
 /// them in memory. Issued tokens live only inside the demo process — restarting the
-/// demo produces fresh ones (the old ones remain in llmtrans's DB until revoked).
+/// demo produces fresh ones (the old ones remain in adaptiveapi's DB until revoked).
 public sealed class RouteDirectory
 {
     private readonly IHttpClientFactory _factory;

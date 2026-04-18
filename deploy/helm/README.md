@@ -1,17 +1,17 @@
-# llmtrans Helm chart
+# adaptiveapi Helm chart
 
 ```bash
 # Put translator secrets into a Kubernetes secret first:
-kubectl create secret generic llmtrans-translators \
+kubectl create secret generic adaptiveapi-translators \
   --from-literal=deeplApiKey=$DEEPL_API_KEY \
   --from-literal=llmApiKey=$OPENAI_API_KEY \
   --from-literal=stripeSecretKey=$STRIPE_SECRET_KEY
 
 # Then install:
-helm install llmtrans ./deploy/helm \
+helm install adaptiveapi ./deploy/helm \
   --set edition=saas \
-  --set translators.existingSecret=llmtrans-translators \
-  --set ingress.host=llmtrans.yourdomain.com
+  --set translators.existingSecret=adaptiveapi-translators \
+  --set ingress.host=adaptiveapi.yourdomain.com
 ```
 
 The chart provisions:

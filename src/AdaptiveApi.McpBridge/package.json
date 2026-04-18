@@ -1,0 +1,47 @@
+{
+  "name": "@adaptiveapi/mcp-bridge",
+  "version": "0.1.0",
+  "description": "Local stdio ↔ adaptiveapi translate-API bridge. Spawns your MCP server with your existing env; routes JSON-RPC through adaptiveapi for translation while upstream credentials stay on the machine.",
+  "license": "AGPL-3.0-or-later",
+  "type": "module",
+  "bin": {
+    "adaptiveapi-mcp-bridge": "dist/cli.js"
+  },
+  "main": "dist/cli.js",
+  "files": [
+    "dist/",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "node esbuild.config.mjs",
+    "dev": "node --loader tsx src/cli.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "esbuild": "^0.24.2",
+    "tsx": "^4.19.2",
+    "typescript": "~5.7.3",
+    "vitest": "^2.1.8"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "adaptiveapi",
+    "translation",
+    "deepl",
+    "stdio",
+    "bridge"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DeeJayTC/adaptiveapi"
+  },
+  "homepage": "https://github.com/DeeJayTC/adaptiveapi/tree/main/src/AdaptiveApi.McpBridge"
+}
