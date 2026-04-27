@@ -4,10 +4,12 @@ using System.Text.Json.Nodes;
 using AdaptiveApi.Core.Abstractions;
 using AdaptiveApi.Core.Model;
 using AdaptiveApi.Core.Pipeline;
+using AdaptiveApi.Core.Plugins;
 using AdaptiveApi.Core.Proxy;
 using AdaptiveApi.Core.Routing;
 using AdaptiveApi.Core.Rules;
 using AdaptiveApi.Core.Streaming;
+using AdaptiveApi.Plugins.SDK.Hooks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 
@@ -21,6 +23,7 @@ public sealed class OpenAiChatAdapter : IProviderAdapter
     private readonly IAuditSink _audit;
     private readonly IPiiRedactor _piiRedactor;
     private readonly ITranslationCache _translationCache;
+    private readonly IPluginHookDispatcher _hooks;
     private readonly ILogger<OpenAiChatAdapter> _log;
 
     public OpenAiChatAdapter(
@@ -30,6 +33,7 @@ public sealed class OpenAiChatAdapter : IProviderAdapter
         IAuditSink audit,
         IPiiRedactor piiRedactor,
         ITranslationCache translationCache,
+        IPluginHookDispatcher hooks,
         ILogger<OpenAiChatAdapter> log)
     {
         _httpFactory = httpFactory;
@@ -38,6 +42,7 @@ public sealed class OpenAiChatAdapter : IProviderAdapter
         _audit = audit;
         _piiRedactor = piiRedactor;
         _translationCache = translationCache;
+        _hooks = hooks;
         _log = log;
     }
 
@@ -83,6 +88,21 @@ public sealed class OpenAiChatAdapter : IProviderAdapter
         planSw.Stop();
         timings.Record("plan", planSw.Elapsed, "resolve rules + planner");
 
+        var hookCtx = new PipelineHookContext(
+            HttpContext: context,
+            RouteId: effective.RouteId,
+            TenantId: effective.TenantId,
+            ProviderId: ProviderId,
+            UserLanguage: effective.UserLanguage.Value,
+            LlmLanguage: effective.LlmLanguage.Value,
+            Direction: effective.Direction.ToString(),
+            Properties: new Dictionary<string, object?>(StringComparer.Ordinal));
+
+        // Hook 1/6 — before request translation
+        var hookResult = await _hooks.RunBeforeRequestTranslationAsync(hookCtx, bodyBytes, ct);
+        if (await ApplyShortCircuitAsync(context, hookResult, ct)) return;
+        if (hookResult.ModifiedBody is { } prereqBody) bodyBytes = prereqBody;
+
         var forwardBody = bodyBytes;
         var requestChars = 0;
         // Request translation runs whether or not the response is streamed — the two
@@ -101,6 +121,11 @@ public sealed class OpenAiChatAdapter : IProviderAdapter
         if (debug is not null && forwardBody.Length > 0)
             debug.SetRequestPost(System.Text.Encoding.UTF8.GetString(forwardBody));
 
+        // Hook 2/6 — after request translation
+        hookResult = await _hooks.RunAfterRequestTranslationAsync(hookCtx, forwardBody, ct);
+        if (await ApplyShortCircuitAsync(context, hookResult, ct)) return;
+        if (hookResult.ModifiedBody is { } postreqBody) forwardBody = postreqBody;
+
         using var upstreamReq = new HttpRequestMessage(new HttpMethod(inbound.Method), upstreamUri);
         if (forwardBody.Length > 0)
         {
@@ -110,11 +135,19 @@ public sealed class OpenAiChatAdapter : IProviderAdapter
         }
         HeaderForwarder.CopyInboundToUpstream(inbound.Headers, upstreamReq, upstreamReq.Content);
 
+        // Hook 3/6 — before AI call
+        hookResult = await _hooks.RunBeforeAiAsync(hookCtx, upstreamReq, ct);
+        if (await ApplyShortCircuitAsync(context, hookResult, ct)) return;
+
         var http = _httpFactory.CreateClient("openai-upstream");
         var upstreamSw = Stopwatch.StartNew();
         using var upstreamResp = await http.SendAsync(upstreamReq, HttpCompletionOption.ResponseHeadersRead, ct);
         upstreamSw.Stop();
         timings.Record("upstream", upstreamSw.Elapsed, "OpenAI round-trip");
+
+        // Hook 4/6 — after AI call
+        hookResult = await _hooks.RunAfterAiAsync(hookCtx, upstreamResp, ct);
+        if (await ApplyShortCircuitAsync(context, hookResult, ct)) return;
 
         context.Response.StatusCode = (int)upstreamResp.StatusCode;
         context.Response.Headers.Remove("transfer-encoding");
@@ -226,6 +259,11 @@ public sealed class OpenAiChatAdapter : IProviderAdapter
             if (debug is not null)
                 debug.SetUpstreamResponse(System.Text.Encoding.UTF8.GetString(respBytes));
 
+            // Hook 5/6 — before response translation
+            hookResult = await _hooks.RunBeforeResponseTranslationAsync(hookCtx, respBytes, ct);
+            if (await ApplyShortCircuitAsync(context, hookResult, ct)) return;
+            if (hookResult.ModifiedBody is { } preRespBody) respBytes = preRespBody;
+
             var respTransSw = Stopwatch.StartNew();
             var (translatedResp, chars) = await TranslateJsonAsync(respBytes, rules.ResponseAllowlist,
                 source: effective.LlmLanguage, target: effective.UserLanguage, effective, rules, rules.ResponseStyle, ct,
@@ -234,6 +272,11 @@ public sealed class OpenAiChatAdapter : IProviderAdapter
             timings.Record("translate-response", respTransSw.Elapsed,
                 $"{effective.LlmLanguage.Value} to {effective.UserLanguage.Value}");
             responseChars = chars;
+
+            // Hook 6/6 — after response translation
+            hookResult = await _hooks.RunAfterResponseTranslationAsync(hookCtx, translatedResp, ct);
+            if (await ApplyShortCircuitAsync(context, hookResult, ct)) return;
+            if (hookResult.ModifiedBody is { } postRespBody) translatedResp = postRespBody;
 
             HeaderForwarder.CopyUpstreamToClient(upstreamResp, context.Response.Headers);
 
@@ -276,6 +319,17 @@ public sealed class OpenAiChatAdapter : IProviderAdapter
             ResponseChars: responseChars,
             IntegrityFailures: integrityFailures,
             DurationMs: sw.ElapsedMilliseconds), ct);
+    }
+
+    private static async Task<bool> ApplyShortCircuitAsync(HttpContext context, HookResult result, CancellationToken ct)
+    {
+        if (result.ContinuePipeline) return false;
+        context.Response.StatusCode = result.ShortCircuitStatus ?? StatusCodes.Status403Forbidden;
+        if (!string.IsNullOrEmpty(result.ShortCircuitContentType))
+            context.Response.Headers["Content-Type"] = result.ShortCircuitContentType;
+        if (result.ShortCircuitBody is { Length: > 0 } body)
+            await context.Response.Body.WriteAsync(body, ct);
+        return true;
     }
 
     private async Task<(byte[] Bytes, int Chars)> TranslateJsonAsync(

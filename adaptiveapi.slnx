@@ -5,6 +5,7 @@
     <Project Path="src/AdaptiveApi.Infrastructure/AdaptiveApi.Infrastructure.csproj" />
     <Project Path="src/AdaptiveApi.Mcp.TranslateApi/AdaptiveApi.Mcp.TranslateApi.csproj" />
     <Project Path="src/AdaptiveApi.Pii.Presidio/AdaptiveApi.Pii.Presidio.csproj" />
+    <Project Path="src/AdaptiveApi.Plugins.SDK/AdaptiveApi.Plugins.SDK.csproj" />
     <Project Path="src/AdaptiveApi.Providers.Anthropic/AdaptiveApi.Providers.Anthropic.csproj" />
     <Project Path="src/AdaptiveApi.Providers.Generic/AdaptiveApi.Providers.Generic.csproj" />
     <Project Path="src/AdaptiveApi.Providers.Mcp/AdaptiveApi.Providers.Mcp.csproj" />

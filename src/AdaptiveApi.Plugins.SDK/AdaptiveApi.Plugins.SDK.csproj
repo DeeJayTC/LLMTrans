@@ -4,8 +4,4 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\AdaptiveApi.Plugins.SDK\AdaptiveApi.Plugins.SDK.csproj" />
-  </ItemGroup>
-
 </Project>

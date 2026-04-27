@@ -258,6 +258,17 @@ public sealed class McpCatalogEntity
     public bool Verified { get; set; }
 }
 
+/// Per-(tenant, plugin) settings. Settings JSON is opaque to the host —
+/// schema is the plugin's responsibility. <c>TenantId</c> is "*" for global
+/// settings (the only mode supported in v1).
+public sealed class PluginSettingsEntity
+{
+    public string TenantId { get; set; } = default!;
+    public string PluginId { get; set; } = default!;
+    public string SettingsJson { get; set; } = "{}";
+    public DateTimeOffset UpdatedAt { get; set; }
+}
+
 public sealed class AuditEventEntity
 {
     public long Id { get; set; }

@@ -25,6 +25,7 @@ public sealed class AdaptiveApiDbContext : DbContext
     public DbSet<OrganizationMemberEntity> OrganizationMembers => Set<OrganizationMemberEntity>();
     public DbSet<InviteEntity> Invites => Set<InviteEntity>();
     public DbSet<BillingUsageEntity> BillingUsage => Set<BillingUsageEntity>();
+    public DbSet<PluginSettingsEntity> PluginSettings => Set<PluginSettingsEntity>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -239,6 +240,15 @@ public sealed class AdaptiveApiDbContext : DbContext
             e.Property(x => x.Transport).HasMaxLength(32).IsRequired();
             e.Property(x => x.Publisher).HasMaxLength(128).IsRequired();
             e.HasIndex(x => x.Slug).IsUnique();
+        });
+
+        b.Entity<PluginSettingsEntity>(e =>
+        {
+            e.ToTable("plugin_settings");
+            e.HasKey(x => new { x.TenantId, x.PluginId });
+            e.Property(x => x.TenantId).HasMaxLength(64);
+            e.Property(x => x.PluginId).HasMaxLength(128);
+            e.Property(x => x.SettingsJson).IsRequired();
         });
 
         b.Entity<AuditEventEntity>(e =>

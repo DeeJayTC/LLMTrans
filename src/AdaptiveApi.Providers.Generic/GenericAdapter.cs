@@ -6,10 +6,12 @@ using System.Text.Json.Serialization;
 using AdaptiveApi.Core.Abstractions;
 using AdaptiveApi.Core.Model;
 using AdaptiveApi.Core.Pipeline;
+using AdaptiveApi.Core.Plugins;
 using AdaptiveApi.Core.Proxy;
 using AdaptiveApi.Core.Routing;
 using AdaptiveApi.Core.Rules;
 using AdaptiveApi.Core.Streaming;
+using AdaptiveApi.Plugins.SDK.Hooks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 
@@ -29,6 +31,7 @@ public sealed class GenericAdapter : IProviderAdapter
     private readonly IAuditSink _audit;
     private readonly IPiiRedactor _piiRedactor;
     private readonly ITranslationCache _translationCache;
+    private readonly IPluginHookDispatcher _hooks;
     private readonly ILogger<GenericAdapter> _log;
 
     public GenericAdapter(
@@ -38,6 +41,7 @@ public sealed class GenericAdapter : IProviderAdapter
         IAuditSink audit,
         IPiiRedactor piiRedactor,
         ITranslationCache translationCache,
+        IPluginHookDispatcher hooks,
         ILogger<GenericAdapter> log)
     {
         _httpFactory = httpFactory;
@@ -46,6 +50,7 @@ public sealed class GenericAdapter : IProviderAdapter
         _audit = audit;
         _piiRedactor = piiRedactor;
         _translationCache = translationCache;
+        _hooks = hooks;
         _log = log;
     }
 
@@ -97,6 +102,21 @@ public sealed class GenericAdapter : IProviderAdapter
         var requestAllowlist = JsonPathConverter.ToAllowlist(config.Request.TranslateJsonPaths);
         var responseFinalAllowlist = JsonPathConverter.ToAllowlist(config.Response.FinalPaths);
 
+        var hookCtx = new PipelineHookContext(
+            HttpContext: context,
+            RouteId: route.RouteId,
+            TenantId: route.TenantId,
+            ProviderId: ProviderId,
+            UserLanguage: route.UserLanguage.Value,
+            LlmLanguage: route.LlmLanguage.Value,
+            Direction: direction.ToString(),
+            Properties: new Dictionary<string, object?>(StringComparer.Ordinal));
+
+        // Hook 1/6 — before request translation
+        var hookResult = await _hooks.RunBeforeRequestTranslationAsync(hookCtx, bodyBytes, ct);
+        if (await ApplyShortCircuitAsync(context, hookResult, ct)) return;
+        if (hookResult.ModifiedBody is { } prereqBody) bodyBytes = prereqBody;
+
         var forwardBody = bodyBytes;
         var requestChars = 0;
         if (translationActive && bodyBytes.Length > 0
@@ -106,8 +126,13 @@ public sealed class GenericAdapter : IProviderAdapter
             (forwardBody, requestChars) = await TranslateJsonAsync(
                 bodyBytes, requestAllowlist,
                 source: route.UserLanguage, target: route.LlmLanguage,
-                translator, rules, rules.RequestStyle, ct);
+                translator, rules, rules.RequestStyle, route, ct);
         }
+
+        // Hook 2/6 — after request translation
+        hookResult = await _hooks.RunAfterRequestTranslationAsync(hookCtx, forwardBody, ct);
+        if (await ApplyShortCircuitAsync(context, hookResult, ct)) return;
+        if (hookResult.ModifiedBody is { } postreqBody) forwardBody = postreqBody;
 
         var method = string.IsNullOrEmpty(config.Upstream.Method)
             ? new HttpMethod(inbound.Method)
@@ -131,8 +156,16 @@ public sealed class GenericAdapter : IProviderAdapter
             }
         }
 
+        // Hook 3/6 — before AI call
+        hookResult = await _hooks.RunBeforeAiAsync(hookCtx, upstreamReq, ct);
+        if (await ApplyShortCircuitAsync(context, hookResult, ct)) return;
+
         var http = _httpFactory.CreateClient("generic-upstream");
         using var upstreamResp = await http.SendAsync(upstreamReq, HttpCompletionOption.ResponseHeadersRead, ct);
+
+        // Hook 4/6 — after AI call
+        hookResult = await _hooks.RunAfterAiAsync(hookCtx, upstreamResp, ct);
+        if (await ApplyShortCircuitAsync(context, hookResult, ct)) return;
 
         context.Response.StatusCode = (int)upstreamResp.StatusCode;
         context.Response.Headers.Remove("transfer-encoding");
@@ -160,7 +193,7 @@ public sealed class GenericAdapter : IProviderAdapter
                 var (translatedData, chars) = await TranslateEventDataAsync(
                     ev.Data, eventAllowlist,
                     source: route.LlmLanguage, target: route.UserLanguage,
-                    translator, rules, rules.ResponseStyle, ct);
+                    translator, rules, rules.ResponseStyle, route, ct);
                 responseChars += chars;
                 await context.Response.Body.WriteAsync(
                     SseParser.SerializeEvent(new SseEvent(ev.Event, translatedData)), ct);
@@ -170,11 +203,22 @@ public sealed class GenericAdapter : IProviderAdapter
         else if (respTranslate && config.Response.FinalPaths.Count > 0)
         {
             var respBytes = await upstreamResp.Content.ReadAsByteArrayAsync(ct);
+
+            // Hook 5/6 — before response translation
+            hookResult = await _hooks.RunBeforeResponseTranslationAsync(hookCtx, respBytes, ct);
+            if (await ApplyShortCircuitAsync(context, hookResult, ct)) return;
+            if (hookResult.ModifiedBody is { } preRespBody) respBytes = preRespBody;
+
             var (translatedResp, chars) = await TranslateJsonAsync(
                 respBytes, responseFinalAllowlist,
                 source: route.LlmLanguage, target: route.UserLanguage,
-                translator, rules, rules.ResponseStyle, ct);
+                translator, rules, rules.ResponseStyle, route, ct);
             responseChars = chars;
+
+            // Hook 6/6 — after response translation
+            hookResult = await _hooks.RunAfterResponseTranslationAsync(hookCtx, translatedResp, ct);
+            if (await ApplyShortCircuitAsync(context, hookResult, ct)) return;
+            if (hookResult.ModifiedBody is { } postRespBody) translatedResp = postRespBody;
 
             context.Response.Headers["Content-Length"] = translatedResp.Length.ToString();
             await context.Response.Body.WriteAsync(translatedResp, ct);
@@ -207,7 +251,8 @@ public sealed class GenericAdapter : IProviderAdapter
 
     private async Task<(byte[] Bytes, int Chars)> TranslateJsonAsync(
         byte[] bytes, Allowlist allowlist, LanguageCode source, LanguageCode target,
-        ITranslator translator, ResolvedRules rules, StyleBinding style, CancellationToken ct)
+        ITranslator translator, ResolvedRules rules, StyleBinding style,
+        RouteConfig route, CancellationToken ct)
     {
         JsonNode? root;
         try { root = JsonNode.Parse(bytes); }
@@ -227,6 +272,8 @@ public sealed class GenericAdapter : IProviderAdapter
             RedactPii = rules.RedactPii,
             PiiDetectors = rules.PiiDetectors,
             Context = rules.SystemContext,
+            TranslationMemoryId = route.TranslationMemoryId,
+            TranslationMemoryThreshold = route.TranslationMemoryThreshold,
         }, ct);
 
         return (Encoding.UTF8.GetBytes(root.ToJsonString()), bytes.Length);
@@ -234,7 +281,8 @@ public sealed class GenericAdapter : IProviderAdapter
 
     private async Task<(string Data, int Chars)> TranslateEventDataAsync(
         string data, Allowlist allowlist, LanguageCode source, LanguageCode target,
-        ITranslator translator, ResolvedRules rules, StyleBinding style, CancellationToken ct)
+        ITranslator translator, ResolvedRules rules, StyleBinding style,
+        RouteConfig route, CancellationToken ct)
     {
         if (string.IsNullOrEmpty(data) || data == "[DONE]") return (data, 0);
         JsonNode? root;
@@ -255,6 +303,8 @@ public sealed class GenericAdapter : IProviderAdapter
             RedactPii = rules.RedactPii,
             PiiDetectors = rules.PiiDetectors,
             Context = rules.SystemContext,
+            TranslationMemoryId = route.TranslationMemoryId,
+            TranslationMemoryThreshold = route.TranslationMemoryThreshold,
         }, ct);
 
         return stats.SitesTranslated == 0 ? (data, 0) : (root.ToJsonString(), data.Length);
@@ -305,6 +355,22 @@ public sealed class GenericAdapter : IProviderAdapter
                 : existing + "&" + query.Value!.TrimStart('?');
         }
         return builder.Uri;
+    }
+
+    /// Writes the short-circuit response when a hook denied the request.
+    /// Returns true when the caller should stop processing.
+    private static async Task<bool> ApplyShortCircuitAsync(HttpContext context, HookResult result, CancellationToken ct)
+    {
+        if (result.ContinuePipeline) return false;
+
+        context.Response.StatusCode = result.ShortCircuitStatus ?? StatusCodes.Status403Forbidden;
+        if (!string.IsNullOrEmpty(result.ShortCircuitContentType))
+            context.Response.Headers["Content-Type"] = result.ShortCircuitContentType;
+
+        if (result.ShortCircuitBody is { Length: > 0 } body)
+            await context.Response.Body.WriteAsync(body, ct);
+
+        return true;
     }
 
     private static async Task<(byte[] Body, bool Streaming)> ReadBodyAsync(HttpRequest req, CancellationToken ct)

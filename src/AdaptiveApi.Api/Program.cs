@@ -3,12 +3,15 @@ using AdaptiveApi.Api.Admin;
 using AdaptiveApi.Api.Auth;
 using AdaptiveApi.Api.Proxy;
 using AdaptiveApi.Core.Abstractions;
+using AdaptiveApi.Core.Plugins;
 using AdaptiveApi.Core.Routing;
 using AdaptiveApi.Infrastructure.Audit;
 using AdaptiveApi.Infrastructure.Caching;
 using AdaptiveApi.Infrastructure.Persistence;
+using AdaptiveApi.Infrastructure.Plugins;
 using AdaptiveApi.Infrastructure.Routing;
 using AdaptiveApi.Infrastructure.Rules;
+using AdaptiveApi.Plugins.SDK;
 using AdaptiveApi.Mcp.TranslateApi;
 using AdaptiveApi.Providers.Anthropic;
 using AdaptiveApi.Providers.Generic;
@@ -77,9 +80,21 @@ builder.Services.AddLogging();
 
 var authMode = AuthSetup.Configure(builder);
 
-var plugins = PluginLoader.Discover();
-foreach (var plugin in plugins)
+var discovered = PluginLoader.Discover();
+foreach (var plugin in discovered.WebPlugins)
     plugin.ConfigureServices(builder);
+
+// Plugin module hooks: each module registers its hooks/services in DI, then
+// the dispatcher resolves them via IEnumerable<THook>. Module instances also
+// register as IAdaptiveApiPlugin so the registry can list manifests.
+foreach (var module in discovered.Modules)
+{
+    module.RegisterServices(builder.Services);
+    builder.Services.AddSingleton<IAdaptiveApiPlugin>(module);
+}
+builder.Services.AddAdaptiveApiPluginHooks();
+builder.Services.AddSingleton<IPluginRegistry, PluginRegistry>();
+builder.Services.AddScoped<IPluginSettingsStore, DbPluginSettingsStore>();
 
 var app = builder.Build();
 
@@ -121,14 +136,26 @@ PiiPackEndpoints.Map(adminGroup);
 PiiRuleEndpoints.Map(adminGroup);
 McpEndpoints.Map(adminGroup);
 DocumentTranslationEndpoints.Map(adminGroup);
+TranslationMemoryEndpoints.Map(adminGroup);
 AuditEndpoints.Map(adminGroup);
 
 TranslateEndpoint.Map(app);
 
 AuthSetup.MapAuthEndpoints(app, authMode, app.Services.GetRequiredService<AuthOptions>());
 
-foreach (var plugin in plugins)
+PluginEndpoints.Map(adminGroup);
+
+foreach (var plugin in discovered.WebPlugins)
     plugin.Map(app);
+
+// Each plugin module gets its own /plugins/{id} group for any custom admin
+// endpoints. The host doesn't enforce auth here — modules are responsible
+// for adding their own RequireAuthorization() calls in MapRoutes.
+foreach (var module in discovered.Modules)
+{
+    var group = app.MapGroup($"/plugins/{module.Manifest.Id}");
+    module.MapRoutes(group);
+}
 
 app.Run();
 

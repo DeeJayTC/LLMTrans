@@ -5,10 +5,12 @@ using System.Text.Json.Nodes;
 using AdaptiveApi.Core.Abstractions;
 using AdaptiveApi.Core.Model;
 using AdaptiveApi.Core.Pipeline;
+using AdaptiveApi.Core.Plugins;
 using AdaptiveApi.Core.Proxy;
 using AdaptiveApi.Core.Routing;
 using AdaptiveApi.Core.Rules;
 using AdaptiveApi.Core.Streaming;
+using AdaptiveApi.Plugins.SDK.Hooks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 
@@ -24,6 +26,7 @@ public sealed class McpRouteAdapter : IProviderAdapter
     private readonly ITranslatorRouter _translatorRouter;
     private readonly IRuleResolver _ruleResolver;
     private readonly IAuditSink _audit;
+    private readonly IPluginHookDispatcher _hooks;
     private readonly ILogger<McpRouteAdapter> _log;
 
     public McpRouteAdapter(
@@ -31,12 +34,14 @@ public sealed class McpRouteAdapter : IProviderAdapter
         ITranslatorRouter translatorRouter,
         IRuleResolver ruleResolver,
         IAuditSink audit,
+        IPluginHookDispatcher hooks,
         ILogger<McpRouteAdapter> log)
     {
         _httpFactory = httpFactory;
         _translatorRouter = translatorRouter;
         _ruleResolver = ruleResolver;
         _audit = audit;
+        _hooks = hooks;
         _log = log;
     }
 
@@ -77,6 +82,21 @@ public sealed class McpRouteAdapter : IProviderAdapter
 
         var translator = _translatorRouter.Resolve(effective);
 
+        var hookCtx = new PipelineHookContext(
+            HttpContext: context,
+            RouteId: effective.RouteId,
+            TenantId: effective.TenantId,
+            ProviderId: ProviderId,
+            UserLanguage: effective.UserLanguage.Value,
+            LlmLanguage: effective.LlmLanguage.Value,
+            Direction: effective.Direction.ToString(),
+            Properties: new Dictionary<string, object?>(StringComparer.Ordinal));
+
+        // Hook 1/6 — before request translation
+        var hookResult = await _hooks.RunBeforeRequestTranslationAsync(hookCtx, bodyBytes, ct);
+        if (await ApplyShortCircuitAsync(context, hookResult, ct)) return;
+        if (hookResult.ModifiedBody is { } prereqBody) bodyBytes = prereqBody;
+
         // Translate the inbound JSON-RPC message (client → upstream). User writes in their language.
         var forwardBody = bodyBytes;
         var requestChars = 0;
@@ -88,14 +108,27 @@ public sealed class McpRouteAdapter : IProviderAdapter
                 rules.ToolArgsDenylist, ct);
         }
 
+        // Hook 2/6 — after request translation
+        hookResult = await _hooks.RunAfterRequestTranslationAsync(hookCtx, forwardBody, ct);
+        if (await ApplyShortCircuitAsync(context, hookResult, ct)) return;
+        if (hookResult.ModifiedBody is { } postreqBody) forwardBody = postreqBody;
+
         using var upstreamReq = new HttpRequestMessage(HttpMethod.Post, effective.UpstreamBaseUrl);
         upstreamReq.Content = new ByteArrayContent(forwardBody);
         upstreamReq.Content.Headers.TryAddWithoutValidation(
             "Content-Type", inbound.ContentType ?? "application/json");
         HeaderForwarder.CopyInboundToUpstream(inbound.Headers, upstreamReq, upstreamReq.Content);
 
+        // Hook 3/6 — before AI call
+        hookResult = await _hooks.RunBeforeAiAsync(hookCtx, upstreamReq, ct);
+        if (await ApplyShortCircuitAsync(context, hookResult, ct)) return;
+
         var http = _httpFactory.CreateClient("mcp-upstream");
         using var upstreamResp = await http.SendAsync(upstreamReq, HttpCompletionOption.ResponseHeadersRead, ct);
+
+        // Hook 4/6 — after AI call
+        hookResult = await _hooks.RunAfterAiAsync(hookCtx, upstreamResp, ct);
+        if (await ApplyShortCircuitAsync(context, hookResult, ct)) return;
 
         context.Response.StatusCode = (int)upstreamResp.StatusCode;
         context.Response.Headers.Remove("transfer-encoding");
@@ -127,11 +160,22 @@ public sealed class McpRouteAdapter : IProviderAdapter
         else if (responseTranslationActive)
         {
             var respBytes = await upstreamResp.Content.ReadAsByteArrayAsync(ct);
+
+            // Hook 5/6 — before response translation
+            hookResult = await _hooks.RunBeforeResponseTranslationAsync(hookCtx, respBytes, ct);
+            if (await ApplyShortCircuitAsync(context, hookResult, ct)) return;
+            if (hookResult.ModifiedBody is { } preRespBody) respBytes = preRespBody;
+
             var (translatedResp, chars) = await TranslateMessageBytesAsync(
                 respBytes, McpDirection.ServerToClient, translator,
                 source: effective.LlmLanguage, target: effective.UserLanguage,
                 rules.ToolArgsDenylist, ct);
             responseChars = chars;
+
+            // Hook 6/6 — after response translation
+            hookResult = await _hooks.RunAfterResponseTranslationAsync(hookCtx, translatedResp, ct);
+            if (await ApplyShortCircuitAsync(context, hookResult, ct)) return;
+            if (hookResult.ModifiedBody is { } postRespBody) translatedResp = postRespBody;
 
             context.Response.Headers["Content-Length"] = translatedResp.Length.ToString();
             await context.Response.Body.WriteAsync(translatedResp, ct);
@@ -206,6 +250,17 @@ public sealed class McpRouteAdapter : IProviderAdapter
         ResponseAllowlist: AllowlistCatalog.Response(route.Kind),
         ToolArgsDenylist: ToolArgsDenylist.Default,
         Formality: Formality.Default);
+
+    private static async Task<bool> ApplyShortCircuitAsync(HttpContext context, HookResult result, CancellationToken ct)
+    {
+        if (result.ContinuePipeline) return false;
+        context.Response.StatusCode = result.ShortCircuitStatus ?? StatusCodes.Status403Forbidden;
+        if (!string.IsNullOrEmpty(result.ShortCircuitContentType))
+            context.Response.Headers["Content-Type"] = result.ShortCircuitContentType;
+        if (result.ShortCircuitBody is { Length: > 0 } body)
+            await context.Response.Body.WriteAsync(body, ct);
+        return true;
+    }
 
     private static async Task<(byte[] Body, bool Streaming)> ReadBodyAsync(HttpRequest req, CancellationToken ct)
     {
