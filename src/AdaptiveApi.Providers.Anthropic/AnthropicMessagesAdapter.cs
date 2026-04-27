@@ -19,6 +19,7 @@ public sealed class AnthropicMessagesAdapter : IProviderAdapter
     private readonly IRuleResolver _ruleResolver;
     private readonly IAuditSink _audit;
     private readonly IPiiRedactor _piiRedactor;
+    private readonly ITranslationCache _translationCache;
     private readonly ILogger<AnthropicMessagesAdapter> _log;
 
     public AnthropicMessagesAdapter(
@@ -27,6 +28,7 @@ public sealed class AnthropicMessagesAdapter : IProviderAdapter
         IRuleResolver ruleResolver,
         IAuditSink audit,
         IPiiRedactor piiRedactor,
+        ITranslationCache translationCache,
         ILogger<AnthropicMessagesAdapter> log)
     {
         _httpFactory = httpFactory;
@@ -34,6 +36,7 @@ public sealed class AnthropicMessagesAdapter : IProviderAdapter
         _ruleResolver = ruleResolver;
         _audit = audit;
         _piiRedactor = piiRedactor;
+        _translationCache = translationCache;
         _log = log;
     }
 
@@ -140,7 +143,7 @@ public sealed class AnthropicMessagesAdapter : IProviderAdapter
         if (root is null) return (bytes, 0);
 
         var translator = _translatorRouter.Resolve(route);
-        var pipeline = new TranslationPipeline(translator, _piiRedactor);
+        var pipeline = new TranslationPipeline(translator, _piiRedactor, _translationCache);
         await pipeline.TranslateInPlaceAsync(root, allowlist, new PipelineOptions
         {
             Source = source,
@@ -153,6 +156,8 @@ public sealed class AnthropicMessagesAdapter : IProviderAdapter
             RedactPii = rules.RedactPii,
             PiiDetectors = rules.PiiDetectors,
             Context = rules.SystemContext,
+            TranslationMemoryId = route.TranslationMemoryId,
+            TranslationMemoryThreshold = route.TranslationMemoryThreshold,
         }, ct);
 
         await ToolCallTranslator.TranslateAsync(

@@ -28,6 +28,7 @@ public sealed class GenericAdapter : IProviderAdapter
     private readonly IRuleResolver _ruleResolver;
     private readonly IAuditSink _audit;
     private readonly IPiiRedactor _piiRedactor;
+    private readonly ITranslationCache _translationCache;
     private readonly ILogger<GenericAdapter> _log;
 
     public GenericAdapter(
@@ -36,6 +37,7 @@ public sealed class GenericAdapter : IProviderAdapter
         IRuleResolver ruleResolver,
         IAuditSink audit,
         IPiiRedactor piiRedactor,
+        ITranslationCache translationCache,
         ILogger<GenericAdapter> log)
     {
         _httpFactory = httpFactory;
@@ -43,6 +45,7 @@ public sealed class GenericAdapter : IProviderAdapter
         _ruleResolver = ruleResolver;
         _audit = audit;
         _piiRedactor = piiRedactor;
+        _translationCache = translationCache;
         _log = log;
     }
 
@@ -211,7 +214,7 @@ public sealed class GenericAdapter : IProviderAdapter
         catch (JsonException) { return (bytes, 0); }
         if (root is null) return (bytes, 0);
 
-        var pipeline = new TranslationPipeline(translator, _piiRedactor);
+        var pipeline = new TranslationPipeline(translator, _piiRedactor, _translationCache);
         await pipeline.TranslateInPlaceAsync(root, allowlist, new PipelineOptions
         {
             Source = source,
@@ -239,7 +242,7 @@ public sealed class GenericAdapter : IProviderAdapter
         catch (JsonException) { return (data, 0); }
         if (root is null) return (data, 0);
 
-        var pipeline = new TranslationPipeline(translator, _piiRedactor);
+        var pipeline = new TranslationPipeline(translator, _piiRedactor, _translationCache);
         var stats = await pipeline.TranslateInPlaceAsync(root, allowlist, new PipelineOptions
         {
             Source = source,

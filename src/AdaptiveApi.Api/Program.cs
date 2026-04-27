@@ -5,6 +5,7 @@ using AdaptiveApi.Api.Proxy;
 using AdaptiveApi.Core.Abstractions;
 using AdaptiveApi.Core.Routing;
 using AdaptiveApi.Infrastructure.Audit;
+using AdaptiveApi.Infrastructure.Caching;
 using AdaptiveApi.Infrastructure.Persistence;
 using AdaptiveApi.Infrastructure.Routing;
 using AdaptiveApi.Infrastructure.Rules;
@@ -18,16 +19,11 @@ using AdaptiveApi.Pii.Presidio;
 using AdaptiveApi.Translators.DeepL;
 using AdaptiveApi.Translators.Llm;
 using AdaptiveApi.Translators.Passthrough;
-using Microsoft.EntityFrameworkCore;
-
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddDbContext<AdaptiveApiDbContext>((sp, o) =>
-{
-    var cfg = sp.GetRequiredService<IConfiguration>();
-    var path = cfg.GetValue<string>("Database:Path") ?? "adaptiveapi.db";
-    o.UseSqlite($"Data Source={path}");
-});
+builder.Services.AddAdaptiveApiDb();
+builder.Services.AddAdaptiveApiDistributedCache(builder.Configuration);
+builder.Services.AddAdaptiveApiTranslationCache();
 
 builder.Services.AddHttpClient("openai-upstream");
 builder.Services.AddHttpClient("anthropic-upstream");
@@ -60,6 +56,7 @@ builder.Services.AddSingleton<IAuditSink, DbAuditSink>();
 builder.Services.AddSingleton<ISaasFeatures, SelfHostFeatures>();
 
 builder.Services.AddSingleton<ITranslator, PassthroughTranslator>();
+builder.Services.AddSingleton<DeepLApiClient>();
 builder.Services.AddSingleton<ITranslator, DeepLTranslator>();
 builder.Services.AddSingleton<ITranslator, AdaptiveApilator>();
 builder.Services.AddSingleton<DeepLDocumentTranslator>();

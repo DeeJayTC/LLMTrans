@@ -49,7 +49,9 @@ public sealed class DbRouteResolver : IRouteResolver
             RequestStyleRuleId: route.RequestStyleRuleId,
             ResponseStyleRuleId: route.ResponseStyleRuleId,
             ProxyRuleId: route.ProxyRuleId,
-            ConfigJson: route.ConfigJson);
+            ConfigJson: route.ConfigJson,
+            TranslationMemoryId: route.TranslationMemoryId,
+            TranslationMemoryThreshold: route.TranslationMemoryThreshold);
     }
 
     private async Task<RouteConfig?> ResolveMcpServerAsync(RouteTokenEntity token, CancellationToken ct)

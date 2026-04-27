@@ -20,6 +20,7 @@ public sealed class OpenAiChatAdapter : IProviderAdapter
     private readonly IRuleResolver _ruleResolver;
     private readonly IAuditSink _audit;
     private readonly IPiiRedactor _piiRedactor;
+    private readonly ITranslationCache _translationCache;
     private readonly ILogger<OpenAiChatAdapter> _log;
 
     public OpenAiChatAdapter(
@@ -28,6 +29,7 @@ public sealed class OpenAiChatAdapter : IProviderAdapter
         IRuleResolver ruleResolver,
         IAuditSink audit,
         IPiiRedactor piiRedactor,
+        ITranslationCache translationCache,
         ILogger<OpenAiChatAdapter> log)
     {
         _httpFactory = httpFactory;
@@ -35,6 +37,7 @@ public sealed class OpenAiChatAdapter : IProviderAdapter
         _ruleResolver = ruleResolver;
         _audit = audit;
         _piiRedactor = piiRedactor;
+        _translationCache = translationCache;
         _log = log;
     }
 
@@ -286,7 +289,7 @@ public sealed class OpenAiChatAdapter : IProviderAdapter
         if (root is null) return (bytes, 0);
 
         var translator = _translatorRouter.Resolve(route);
-        var pipeline = new TranslationPipeline(translator, _piiRedactor);
+        var pipeline = new TranslationPipeline(translator, _piiRedactor, _translationCache);
 
         var pipelineOptions = new PipelineOptions
         {
@@ -300,6 +303,8 @@ public sealed class OpenAiChatAdapter : IProviderAdapter
             RedactPii = rules.RedactPii,
             PiiDetectors = rules.PiiDetectors,
             Context = rules.SystemContext,
+            TranslationMemoryId = route.TranslationMemoryId,
+            TranslationMemoryThreshold = route.TranslationMemoryThreshold,
             Debug = debug,
             DebugDirection = debugDirection,
         };
@@ -350,6 +355,12 @@ public sealed class OpenAiChatAdapter : IProviderAdapter
             ? rspsr.ToString()
             : legacyStyle ?? route.ResponseStyleRuleId;
 
+        var tmId = req.Headers.TryGetValue("X-AdaptiveApi-Translation-Memory", out var tm)
+            ? tm.ToString() : route.TranslationMemoryId;
+        int? tmThreshold = req.Headers.TryGetValue("X-AdaptiveApi-Tm-Threshold", out var tmt)
+                           && int.TryParse(tmt.ToString(), out var parsedThreshold)
+            ? parsedThreshold : route.TranslationMemoryThreshold;
+
         if (tl.Count > 0 && mode == DirectionMode.Off) mode = DirectionMode.Bidirectional;
 
         return route with
@@ -361,6 +372,8 @@ public sealed class OpenAiChatAdapter : IProviderAdapter
             GlossaryId = glossary,
             RequestStyleRuleId = requestStyle,
             ResponseStyleRuleId = responseStyle,
+            TranslationMemoryId = string.IsNullOrEmpty(tmId) ? null : tmId,
+            TranslationMemoryThreshold = tmThreshold,
         };
     }
 

@@ -18,17 +18,28 @@ namespace AdaptiveApi.Translators.DeepL;
 /// `TextTranslateOptions` carries glossary_id, style_id, custom_instructions,
 /// model_type, formality, tag handling, and ignore_tags=adaptiveapi so our
 /// placeholder tags pass through untouched.
+///
+/// When a request carries a <c>TranslationMemoryId</c>, the call is dispatched
+/// via <see cref="DeepLApiClient"/> against the v2 HTTP endpoint instead of the
+/// SDK, because the SDK does not yet expose translation_memory_id /
+/// translation_memory_threshold. The SDK path is otherwise preferred (faster,
+/// pooled, well-tested).
 public sealed class DeepLTranslator : CoreTranslator, IDisposable
 {
     private readonly IOptions<DeepLOptions> _options;
     private readonly ILogger<DeepLTranslator> _log;
     private readonly Lazy<DeepLClient> _client;
+    private readonly DeepLApiClient? _httpClient;
 
-    public DeepLTranslator(IOptions<DeepLOptions> options, ILogger<DeepLTranslator> log)
+    public DeepLTranslator(
+        IOptions<DeepLOptions> options,
+        ILogger<DeepLTranslator> log,
+        DeepLApiClient? httpClient = null)
     {
         _options = options;
         _log = log;
         _client = new Lazy<DeepLClient>(CreateClient, isThreadSafe: true);
+        _httpClient = httpClient;
     }
 
     public string TranslatorId => "deepl";
@@ -42,18 +53,18 @@ public sealed class DeepLTranslator : CoreTranslator, IDisposable
         | TranslatorCapabilities.DocumentApi
         | TranslatorCapabilities.StyleRules
         | TranslatorCapabilities.CustomInstructions
-        | TranslatorCapabilities.MultilingualGlossary;
+        | TranslatorCapabilities.MultilingualGlossary
+        | TranslatorCapabilities.TranslationMemory;
 
     public async Task<IReadOnlyList<CoreTranslationResult>> TranslateBatchAsync(
         IReadOnlyList<CoreTranslationRequest> requests, CancellationToken ct)
     {
         if (requests.Count == 0) return Array.Empty<CoreTranslationResult>();
 
-        var client = _client.Value;
         var results = new CoreTranslationResult[requests.Count];
 
-        // The SDK call accepts one (source, target, options) triplet per batch, so
-        // partition by the full request option set.
+        // The translate call accepts one (source, target, options) triplet per batch,
+        // so partition by the full request option set (which now includes TM id).
         var groups = requests
             .Select((r, i) => (Req: r, Index: i))
             .GroupBy(x => BatchKey.From(x.Req));
@@ -62,34 +73,112 @@ public sealed class DeepLTranslator : CoreTranslator, IDisposable
         {
             var items = group.ToList();
             var first = items[0].Req;
-            var texts = items.Select(x => x.Req.Text).ToArray();
-            var options = BuildOptions(first);
 
-            try
-            {
-                var sourceLang = NormalizeSource(first.Source.Value);
-                var targetLang = NormalizeTarget(first.Target.Value);
-
-                var translated = await client.TranslateTextAsync(texts, sourceLang, targetLang, options, ct);
-                for (var i = 0; i < items.Count; i++)
-                {
-                    var t = translated[i];
-                    results[items[i].Index] = new CoreTranslationResult(
-                        t.Text,
-                        string.IsNullOrEmpty(t.DetectedSourceLanguageCode) ? null
-                            : new CoreLanguageCode(t.DetectedSourceLanguageCode.ToLowerInvariant()));
-                }
-            }
-            catch (DeepLException ex)
-            {
-                _log.LogError(ex, "DeepL call failed for source={Source} target={Target}; falling back to source text",
-                    first.Source.Value, first.Target.Value);
-                for (var i = 0; i < items.Count; i++)
-                    results[items[i].Index] = new CoreTranslationResult(items[i].Req.Text);
-            }
+            if (!string.IsNullOrEmpty(first.TranslationMemoryId))
+                await TranslateGroupViaHttpAsync(items, first, results, ct);
+            else
+                await TranslateGroupViaSdkAsync(items, first, results, ct);
         }
 
         return results;
+    }
+
+    private async Task TranslateGroupViaSdkAsync(
+        List<(CoreTranslationRequest Req, int Index)> items,
+        CoreTranslationRequest first,
+        CoreTranslationResult[] results,
+        CancellationToken ct)
+    {
+        var client = _client.Value;
+        var texts = items.Select(x => x.Req.Text).ToArray();
+        var options = BuildSdkOptions(first);
+
+        try
+        {
+            var sourceLang = NormalizeSource(first.Source.Value);
+            var targetLang = NormalizeTarget(first.Target.Value);
+
+            var translated = await client.TranslateTextAsync(texts, sourceLang, targetLang, options, ct);
+            for (var i = 0; i < items.Count; i++)
+            {
+                var t = translated[i];
+                results[items[i].Index] = new CoreTranslationResult(
+                    t.Text,
+                    string.IsNullOrEmpty(t.DetectedSourceLanguageCode) ? null
+                        : new CoreLanguageCode(t.DetectedSourceLanguageCode.ToLowerInvariant()));
+            }
+        }
+        catch (DeepLException ex)
+        {
+            _log.LogError(ex, "DeepL SDK call failed for source={Source} target={Target}; falling back to source text",
+                first.Source.Value, first.Target.Value);
+            for (var i = 0; i < items.Count; i++)
+                results[items[i].Index] = new CoreTranslationResult(items[i].Req.Text);
+        }
+    }
+
+    private async Task TranslateGroupViaHttpAsync(
+        List<(CoreTranslationRequest Req, int Index)> items,
+        CoreTranslationRequest first,
+        CoreTranslationResult[] results,
+        CancellationToken ct)
+    {
+        if (_httpClient is null)
+        {
+            _log.LogError("DeepL Translation Memory request received but DeepLApiClient is not registered; falling back to source text");
+            for (var i = 0; i < items.Count; i++)
+                results[items[i].Index] = new CoreTranslationResult(items[i].Req.Text);
+            return;
+        }
+
+        var texts = items.Select(x => x.Req.Text).ToArray();
+
+        // DeepL rejects TM requests against latency_optimized — coerce to quality_optimized
+        // (the only TM-compatible model) regardless of the caller's preference.
+        var modelType = MapModelTypeWire(first.ModelType);
+        if (modelType == "latency_optimized") modelType = "quality_optimized";
+        if (string.IsNullOrEmpty(modelType)) modelType = "quality_optimized";
+
+        var context = !string.IsNullOrEmpty(first.Context) ? first.Context : _options.Value.SystemContext;
+        if (!string.IsNullOrEmpty(context) && context.Length > 4000) context = context[..4000];
+
+        var request = new TranslateTextRequest
+        {
+            Text = texts,
+            SourceLang = NormalizeSource(first.Source.Value),
+            TargetLang = NormalizeTarget(first.Target.Value),
+            TranslationMemoryId = first.TranslationMemoryId,
+            TranslationMemoryThreshold = first.TranslationMemoryThreshold,
+            GlossaryId = string.IsNullOrEmpty(first.GlossaryId) ? null : first.GlossaryId,
+            StyleId = string.IsNullOrEmpty(first.StyleRuleId) ? null : first.StyleRuleId,
+            Formality = MapFormalityWire(first.Formality),
+            ModelType = modelType,
+            TagHandling = MapTagHandlingWire(first.TagHandling),
+            IgnoreTags = new[] { "adaptiveapi" },
+            Context = context,
+            CustomInstructions = first.CustomInstructions is { Count: > 0 }
+                ? first.CustomInstructions
+                : null,
+        };
+
+        var response = await _httpClient.TranslateTextAsync(request, ct);
+        if (response is null || response.Translations.Count < items.Count)
+        {
+            _log.LogError("DeepL HTTP TM call returned no/short payload for source={Source} target={Target} tm={Tm}; falling back",
+                first.Source.Value, first.Target.Value, first.TranslationMemoryId);
+            for (var i = 0; i < items.Count; i++)
+                results[items[i].Index] = new CoreTranslationResult(items[i].Req.Text);
+            return;
+        }
+
+        for (var i = 0; i < items.Count; i++)
+        {
+            var t = response.Translations[i];
+            results[items[i].Index] = new CoreTranslationResult(
+                t.Text,
+                string.IsNullOrEmpty(t.DetectedSourceLanguage) ? null
+                    : new CoreLanguageCode(t.DetectedSourceLanguage.ToLowerInvariant()));
+        }
     }
 
     private DeepLClient CreateClient()
@@ -105,7 +194,7 @@ public sealed class DeepLTranslator : CoreTranslator, IDisposable
         return new DeepLClient(apiKey);
     }
 
-    private TextTranslateOptions BuildOptions(CoreTranslationRequest r)
+    private TextTranslateOptions BuildSdkOptions(CoreTranslationRequest r)
     {
         var opts = new TextTranslateOptions
         {
@@ -150,12 +239,38 @@ public sealed class DeepLTranslator : CoreTranslator, IDisposable
         _ => null,
     };
 
+    private static string? MapFormalityWire(CoreFormality f) => f switch
+    {
+        CoreFormality.Default => null,
+        CoreFormality.More => "more",
+        CoreFormality.Less => "less",
+        CoreFormality.PreferMore => "prefer_more",
+        CoreFormality.PreferLess => "prefer_less",
+        _ => null,
+    };
+
     private static SdkModelType? MapModelType(string? value) => value switch
     {
         null or "" => null,
         "quality_optimized" => SdkModelType.QualityOptimized,
         "latency_optimized" => SdkModelType.LatencyOptimized,
         "prefer_quality_optimized" => SdkModelType.PreferQualityOptimized,
+        _ => null,
+    };
+
+    private static string? MapModelTypeWire(string? value) => value switch
+    {
+        null or "" => null,
+        "quality_optimized" => "quality_optimized",
+        "latency_optimized" => "latency_optimized",
+        "prefer_quality_optimized" => "prefer_quality_optimized",
+        _ => null,
+    };
+
+    private static string? MapTagHandlingWire(CoreTagHandling t) => t switch
+    {
+        CoreTagHandling.Xml => "xml",
+        CoreTagHandling.Html => "html",
         _ => null,
     };
 
@@ -187,12 +302,14 @@ public sealed class DeepLTranslator : CoreTranslator, IDisposable
 
     private readonly record struct BatchKey(
         string Source, string Target, string? GlossaryId, CoreFormality Formality,
-        string? StyleId, string? CustomInstructions, string? ModelType, CoreTagHandling TagHandling)
+        string? StyleId, string? CustomInstructions, string? ModelType, CoreTagHandling TagHandling,
+        string? TranslationMemoryId, int? TranslationMemoryThreshold)
     {
         public static BatchKey From(CoreTranslationRequest r) => new(
             r.Source.Value, r.Target.Value, r.GlossaryId, r.Formality,
             r.StyleRuleId,
             r.CustomInstructions is null ? null : string.Join("|", r.CustomInstructions),
-            r.ModelType, r.TagHandling);
+            r.ModelType, r.TagHandling,
+            r.TranslationMemoryId, r.TranslationMemoryThreshold);
     }
 }

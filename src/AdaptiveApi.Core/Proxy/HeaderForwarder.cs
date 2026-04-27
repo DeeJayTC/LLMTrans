@@ -34,6 +34,8 @@ public static class HeaderForwarder
         "X-AdaptiveApi-Mode",
         "X-AdaptiveApi-Stream-Strategy",
         "X-AdaptiveApi-Debug",
+        "X-AdaptiveApi-Translation-Memory",
+        "X-AdaptiveApi-Tm-Threshold",
     };
 
     public static bool IsHopByHop(string header) => HopByHop.Contains(header);

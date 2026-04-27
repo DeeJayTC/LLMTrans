@@ -25,6 +25,10 @@ public static class PiiSchemaUpgrader
         await EnsureColumnAsync(conn, "proxy_rules", "PiiRuleIdsJson", "TEXT", ct);
         await EnsureColumnAsync(conn, "proxy_rules", "PiiDisabledDetectorsJson", "TEXT", ct);
 
+        // DeepL Translation Memory binding (per-route).
+        await EnsureColumnAsync(conn, "routes", "TranslationMemoryId", "TEXT", ct);
+        await EnsureColumnAsync(conn, "routes", "TranslationMemoryThreshold", "INTEGER", ct);
+
         await EnsureTableAsync(conn, "pii_packs", """
             CREATE TABLE IF NOT EXISTS pii_packs (
                 Id            TEXT NOT NULL PRIMARY KEY,

@@ -25,6 +25,11 @@ public sealed class RouteEntity
     /// voice / tone used when talking to the human.
     public string? ResponseStyleRuleId { get; set; }
     public string? ProxyRuleId { get; set; }
+    /// DeepL Translation Memory UUID. Calls flow through the v2 HTTP API when set
+    /// because the SDK does not yet expose translation_memory_id.
+    public string? TranslationMemoryId { get; set; }
+    /// Optional fuzzy-match threshold (0–100) for the bound TM. Default 75 server-side.
+    public int? TranslationMemoryThreshold { get; set; }
     /// Kind-specific declarative config. For Generic routes: JSONPath translation spec
     /// (§2.4). For other kinds: null.
     public string? ConfigJson { get; set; }

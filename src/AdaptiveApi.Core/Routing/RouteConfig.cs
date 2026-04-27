@@ -17,7 +17,13 @@ public sealed record RouteConfig(
     /// Style rule applied to the LLM → user (response) direction.
     string? ResponseStyleRuleId,
     string? ProxyRuleId,
-    string? ConfigJson = null);
+    string? ConfigJson = null,
+    /// DeepL Translation Memory UUID bound to this route. When set, DeepL
+    /// translation calls are dispatched via the v2 HTTP API (not the SDK)
+    /// because the SDK does not yet expose `translation_memory_id`.
+    string? TranslationMemoryId = null,
+    /// Optional fuzzy-match threshold (0–100) override. Default 75 server-side.
+    int? TranslationMemoryThreshold = null);
 
 public enum RouteKind
 {

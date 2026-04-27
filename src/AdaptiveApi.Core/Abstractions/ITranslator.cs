@@ -23,7 +23,15 @@ public sealed record TranslationRequest(
     string? Context = null,
     string? StyleRuleId = null,
     IReadOnlyList<string>? CustomInstructions = null,
-    string? ModelType = null);
+    string? ModelType = null,
+    /// DeepL Translation Memory UUID. When set, the translator must use the
+    /// `quality_optimized` model — DeepL rejects TM requests against the
+    /// latency-optimized model.
+    string? TranslationMemoryId = null,
+    /// Minimum fuzzy-match percentage (0–100) for a TM segment to apply.
+    /// DeepL defaults to 75 when omitted; values below 75 typically degrade
+    /// quality and are not recommended.
+    int? TranslationMemoryThreshold = null);
 
 public sealed record TranslationResult(
     string Text,
@@ -45,4 +53,5 @@ public enum TranslatorCapabilities
     StyleRules = 1 << 6,
     CustomInstructions = 1 << 7,
     MultilingualGlossary = 1 << 8,
+    TranslationMemory = 1 << 9,
 }

@@ -47,6 +47,7 @@ public sealed class AdaptiveApiDbContext : DbContext
             e.Property(x => x.UserLanguage).HasMaxLength(16).IsRequired();
             e.Property(x => x.LlmLanguage).HasMaxLength(16).IsRequired();
             e.Property(x => x.Direction).HasMaxLength(16).IsRequired();
+            e.Property(x => x.TranslationMemoryId).HasMaxLength(128);
             e.HasIndex(x => x.TenantId);
         });
 

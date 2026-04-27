@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json.Nodes;
 using AdaptiveApi.Core.Abstractions;
 using AdaptiveApi.Core.Model;
@@ -36,6 +38,11 @@ public sealed class PipelineOptions
     /// parameter). Combined system context + accumulated conversation history, capped
     /// at 4 000 characters.
     public string? Context { get; init; }
+    /// DeepL Translation Memory UUID bound to the route. Forwarded to the translator
+    /// per request. Forces quality_optimized model when set.
+    public string? TranslationMemoryId { get; init; }
+    /// Minimum fuzzy-match percentage (0–100) for a TM segment to apply.
+    public int? TranslationMemoryThreshold { get; init; }
 }
 
 public sealed record PipelineStats(int SitesPlanned, int SitesTranslated, int CacheHits, int IntegrityFailures, int PiiRedactions);
@@ -43,14 +50,17 @@ public sealed record PipelineStats(int SitesPlanned, int SitesTranslated, int Ca
 public sealed class TranslationPipeline
 {
     private static readonly IPiiRedactor FallbackRedactor = new RegexPiiRedactor();
+    private static readonly ITranslationCache NoopCache = new NoopTranslationCache();
 
     private readonly ITranslator _translator;
     private readonly IPiiRedactor _defaultRedactor;
+    private readonly ITranslationCache _cache;
 
-    public TranslationPipeline(ITranslator translator, IPiiRedactor? piiRedactor = null)
+    public TranslationPipeline(ITranslator translator, IPiiRedactor? piiRedactor = null, ITranslationCache? cache = null)
     {
         _translator = translator;
         _defaultRedactor = piiRedactor ?? FallbackRedactor;
+        _cache = cache ?? NoopCache;
     }
 
     public async Task<PipelineStats> TranslateInPlaceAsync(
@@ -96,10 +106,70 @@ public sealed class TranslationPipeline
                 Context: options.Context,
                 StyleRuleId: options.StyleRuleId,
                 CustomInstructions: options.CustomInstructions,
-                ModelType: options.ModelType))
+                ModelType: options.ModelType,
+                TranslationMemoryId: options.TranslationMemoryId,
+                TranslationMemoryThreshold: options.TranslationMemoryThreshold))
             .ToList();
 
-        var results = await _translator.TranslateBatchAsync(requests, ct);
+        // Per-request cache lookup. Misses go to the translator in a batch; hits skip it.
+        var cacheHits = 0;
+        var hitTexts = new string?[requests.Count];
+        var missIndices = new List<int>(requests.Count);
+        var missRequests = new List<TranslationRequest>(requests.Count);
+
+        for (var i = 0; i < requests.Count; i++)
+        {
+            var key = ComputeCacheKey(_translator.TranslatorId, requests[i]);
+            var cached = await _cache.GetAsync(key, ct);
+            if (cached is not null)
+            {
+                hitTexts[i] = cached;
+                cacheHits++;
+            }
+            else
+            {
+                missIndices.Add(i);
+                missRequests.Add(requests[i]);
+            }
+        }
+
+        IReadOnlyList<TranslationResult> missResults = Array.Empty<TranslationResult>();
+        if (missRequests.Count > 0)
+        {
+            missResults = await _translator.TranslateBatchAsync(missRequests, ct);
+
+            for (var k = 0; k < missResults.Count && k < missRequests.Count; k++)
+            {
+                var key = ComputeCacheKey(_translator.TranslatorId, missRequests[k]);
+                var translatedText = missResults[k].Text;
+                if (!string.IsNullOrEmpty(translatedText))
+                {
+                    try
+                    {
+                        await _cache.SetAsync(key, translatedText, ct);
+                    }
+                    catch
+                    {
+                        // Cache write failures must never break the translation pipeline.
+                    }
+                }
+            }
+        }
+
+        // Reassemble full result list in the original request order.
+        var results = new TranslationResult[requests.Count];
+        for (var i = 0; i < requests.Count; i++)
+        {
+            if (hitTexts[i] is not null)
+                results[i] = new TranslationResult(hitTexts[i]!);
+        }
+        for (var k = 0; k < missIndices.Count; k++)
+        {
+            var originalIndex = missIndices[k];
+            results[originalIndex] = k < missResults.Count
+                ? missResults[k]
+                : new TranslationResult(requests[originalIndex].Text);
+        }
 
         options.Debug?.RecordTranslation(
             direction: options.DebugDirection,
@@ -112,7 +182,7 @@ public sealed class TranslationPipeline
         for (var i = 0; i < prepared.Count; i++)
         {
             var p = prepared[i];
-            var translatedRaw = i < results.Count ? results[i].Text : p.TokenizedText;
+            var translatedRaw = i < results.Length ? results[i].Text : p.TokenizedText;
             var validation = PlaceholderValidator.Validate(translatedRaw, p.Placeholders);
             if (!validation.Ok)
             {
@@ -122,7 +192,43 @@ public sealed class TranslationPipeline
             p.Site.Apply(PlaceholderTokenizer.Reinject(translatedRaw, p.Placeholders));
         }
 
-        return new PipelineStats(sites.Count, sites.Count - integrityFailures, 0, integrityFailures, piiCount);
+        return new PipelineStats(sites.Count, sites.Count - integrityFailures, cacheHits, integrityFailures, piiCount);
+    }
+
+    /// Stable, deterministic cache key. Length-prefixes every component so values
+    /// like "en|de" and "end|e" cannot collide. Output is hex SHA-256 with a
+    /// short namespace prefix so cache backends keep their own keyspace clean.
+    private static string ComputeCacheKey(string translatorId, TranslationRequest r)
+    {
+        var sb = new StringBuilder(r.Text.Length + 256);
+        Append(sb, translatorId);
+        Append(sb, r.Source.Value);
+        Append(sb, r.Target.Value);
+        Append(sb, r.GlossaryId ?? "");
+        Append(sb, r.StyleRuleId ?? "");
+        Append(sb, r.Formality.ToString());
+        Append(sb, r.TagHandling.ToString());
+        Append(sb, r.ModelType ?? "");
+        Append(sb, r.TranslationMemoryId ?? "");
+        Append(sb, r.TranslationMemoryThreshold?.ToString() ?? "");
+        Append(sb, r.Context ?? "");
+        if (r.CustomInstructions is { Count: > 0 })
+        {
+            foreach (var ci in r.CustomInstructions) Append(sb, ci);
+        }
+        else
+        {
+            Append(sb, "");
+        }
+        Append(sb, r.Text);
+
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(sb.ToString()));
+        return "adaptiveapi:tx:" + Convert.ToHexString(hash);
+
+        static void Append(StringBuilder sb, string value)
+        {
+            sb.Append(value.Length).Append('|').Append(value).Append('\n');
+        }
     }
 
     private sealed record PreparedSite(TranslationSite Site, string TokenizedText, IReadOnlyList<Placeholder> Placeholders);
