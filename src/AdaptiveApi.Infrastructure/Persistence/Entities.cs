@@ -101,12 +101,56 @@ public sealed class ProxyRuleEntity
     public string? Formality { get; set; }
     public int Priority { get; set; }
     /// When true, PII (emails, phones, credit cards, …) is redacted to opaque tokens
-    /// before the translator — and therefore the upstream — sees the text.
+    /// before the translator (and therefore the upstream) sees the text.
     public bool RedactPii { get; set; }
+    /// JSON array of premade pack slugs the route opts into. Null or empty defaults to
+    /// the built-in `pack_default` so existing routes that only set `RedactPii: true`
+    /// keep their original behaviour.
+    public string? PiiPackSlugsJson { get; set; }
+    /// JSON array of tenant-scoped custom PII rule ids bound to this route. Null is treated
+    /// as an empty list.
+    public string? PiiRuleIdsJson { get; set; }
+    /// JSON array of `pack_slug:DETECTOR_KIND` keys the tenant has explicitly disabled
+    /// inside otherwise-enabled packs. Lets you turn on `pack_default` while turning
+    /// `phone` off, for example.
+    public string? PiiDisabledDetectorsJson { get; set; }
     /// Admin-defined context that is prepended to DeepL's `context` parameter on every
     /// translation call. Helps the translator pick domain-appropriate terms.
     /// Max 4 000 characters (DeepL limit shared with accumulated conversation context).
     public string? SystemContext { get; set; }
+}
+
+/// System-defined PII rule pack. Seeded on startup, read-only from the admin API.
+/// Tenants reference a pack by `Slug` from their proxy rule. The `DetectorsJson`
+/// payload is the wire format that `PiiDetectorSerializer` reads.
+public sealed class PiiPackEntity
+{
+    public string Id { get; set; } = default!;
+    public string Slug { get; set; } = default!;
+    public string Name { get; set; } = default!;
+    public string Description { get; set; } = default!;
+    /// JSON array. Each entry: { kind, replacement, pattern, flags?, luhnValidate? }.
+    public string DetectorsJson { get; set; } = "[]";
+    public bool IsBuiltin { get; set; } = true;
+    public int Ordinal { get; set; }
+}
+
+/// Tenant-scoped custom PII rule. Bound to a route by id from
+/// `ProxyRuleEntity.PiiRuleIdsJson`.
+public sealed class PiiRuleEntity
+{
+    public string Id { get; set; } = default!;
+    public string TenantId { get; set; } = default!;
+    /// Slug-style label, surfaced in audit logs and metric labels.
+    public string Name { get; set; } = default!;
+    public string? Description { get; set; }
+    public string Pattern { get; set; } = default!;
+    public string Replacement { get; set; } = default!;
+    /// JSON object: { caseInsensitive?: bool, multiline?: bool, luhnValidate?: bool }.
+    public string? FlagsJson { get; set; }
+    public bool Enabled { get; set; } = true;
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
 }
 
 public sealed class OrganizationEntity

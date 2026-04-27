@@ -14,6 +14,8 @@ public static class Seeder
     public static async Task<string?> EnsureSeededAsync(AdaptiveApiDbContext db, string? fixedTokenForTests, CancellationToken ct)
     {
         await db.Database.EnsureCreatedAsync(ct);
+        await PiiSchemaUpgrader.EnsureUpgradedAsync(db, ct);
+        await PiiPackSeeder.EnsureSeededAsync(db, ct);
 
         if (!await db.Tenants.AnyAsync(t => t.Id == DevTenantId, ct))
         {

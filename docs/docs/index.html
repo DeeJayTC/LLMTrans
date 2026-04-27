@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Documentation. AdaptiveAPI.</title>
+<meta name="description" content="AdaptiveAPI documentation. Run it, point your SDK at it, and ship multilingual LLM and MCP integrations." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../assets/styles.css" />
+<link rel="stylesheet" href="../assets/docs.css" />
+<link rel="icon" type="image/svg+xml" href="../assets/favicon.svg" />
+</head>
+<body>
+
+<header class="nav">
+  <div class="nav-inner">
+    <a href="../index.html" class="brand">
+      <span class="brand-mark" aria-hidden="true">◆</span>
+      <span class="brand-name">adaptive<em>api</em></span>
+    </a>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="../index.html#how">How it works</a>
+      <a href="../index.html#features">Features</a>
+      <a href="index.html">Docs</a>
+      <a href="../index.html#faq">FAQ</a>
+    </nav>
+    <div class="nav-actions">
+      <button class="theme-toggle" type="button" aria-label="Toggle theme" data-theme-toggle>
+        <span class="theme-icon-light" aria-hidden="true">☀</span>
+        <span class="theme-icon-dark" aria-hidden="true">☾</span>
+      </button>
+      <a class="btn btn-ghost" href="https://github.com/DeeJayTC/adaptiveapi">GitHub</a>
+      <a class="btn btn-primary" href="getting-started.html">Get started <span aria-hidden="true">→</span></a>
+    </div>
+  </div>
+</header>
+
+<div class="docs-shell">
+
+  <aside class="docs-side" aria-label="Documentation navigation">
+    <h4>Start here</h4>
+    <ul>
+      <li><a href="index.html" class="is-active">Overview</a></li>
+      <li><a href="getting-started.html">Getting started</a></li>
+      <li><a href="authentication.html">Authentication</a></li>
+      <li><a href="routes.html">Routes and tokens</a></li>
+    </ul>
+    <h4>Integrate</h4>
+    <ul>
+      <li><a href="llm-providers.html">LLM providers</a></li>
+      <li><a href="mcp.html">MCP servers</a></li>
+      <li><a href="generic-json.html">Generic JSON API</a></li>
+    </ul>
+    <h4>Features</h4>
+    <ul>
+      <li><a href="style-rules.html">Style rules &amp; customization</a></li>
+      <li><a href="pii.html">PII detection</a></li>
+      <li><a href="translation.html">Translation pipeline</a></li>
+    </ul>
+    <h4>Operate</h4>
+    <ul>
+      <li><a href="deployment.html">Deployment</a></li>
+      <li><a href="configuration.html">Configuration</a></li>
+    </ul>
+  </aside>
+
+  <main class="docs-main">
+    <span class="docs-eyebrow">Documentation</span>
+    <h1>Run it. Point your SDK at it. <em>Ship.</em></h1>
+    <p class="docs-lede">
+      AdaptiveAPI is a multilingual proxy you self-host. The reference below
+      walks through running the stack locally, creating a route, and wiring up
+      OpenAI, Anthropic, MCP, or any HTTP+JSON API. Deploy notes and a full
+      configuration reference live at the end.
+    </p>
+
+    <div class="hub-grid">
+      <a class="hub-card" href="getting-started.html">
+        <span class="hub-card-num">01</span>
+        <h3>Getting started</h3>
+        <p>Clone, run with Docker, send your first translated request inside five minutes.</p>
+      </a>
+      <a class="hub-card" href="authentication.html">
+        <span class="hub-card-num">02</span>
+        <h3>Authentication</h3>
+        <p>Where DeepL, OpenAI, Anthropic, and MCP tokens go. What is stored, what is forwarded, what is hashed.</p>
+      </a>
+      <a class="hub-card" href="routes.html">
+        <span class="hub-card-num">03</span>
+        <h3>Routes and tokens</h3>
+        <p>How a route is shaped, how tokens are issued and stored, and the request-time headers you can use.</p>
+      </a>
+      <a class="hub-card" href="llm-providers.html">
+        <span class="hub-card-num">04</span>
+        <h3>LLM providers</h3>
+        <p>Drop-in patterns for OpenAI and Anthropic. Same SDK, same keys, new base URL.</p>
+      </a>
+      <a class="hub-card" href="mcp.html">
+        <span class="hub-card-num">05</span>
+        <h3>MCP servers</h3>
+        <p>Translate every MCP server (remote and stdio) without changing your client or your credentials.</p>
+      </a>
+      <a class="hub-card" href="generic-json.html">
+        <span class="hub-card-num">06</span>
+        <h3>Generic JSON API</h3>
+        <p>Translate any HTTP+JSON API by describing which JSON paths carry human text. No code on either end.</p>
+      </a>
+      <a class="hub-card" href="style-rules.html">
+        <span class="hub-card-num">07</span>
+        <h3>Style rules &amp; customization</h3>
+        <p>Locale-aware adaptation. Number formats, date formats, formality, terminology, custom instructions.</p>
+      </a>
+      <a class="hub-card" href="pii.html">
+        <span class="hub-card-num">08</span>
+        <h3>PII detection</h3>
+        <p>Built-in regex detectors, Presidio for higher recall, and custom rules for your own identifiers.</p>
+      </a>
+      <a class="hub-card" href="translation.html">
+        <span class="hub-card-num">09</span>
+        <h3>Translation pipeline</h3>
+        <p>Streaming strategies, tool-call walking, and glossary mechanics.</p>
+      </a>
+      <a class="hub-card" href="deployment.html">
+        <span class="hub-card-num">10</span>
+        <h3>Deployment</h3>
+        <p>Docker compose, Helm chart, source builds, and what to flip when you outgrow SQLite.</p>
+      </a>
+      <a class="hub-card" href="configuration.html">
+        <span class="hub-card-num">11</span>
+        <h3>Configuration</h3>
+        <p>Every env var and appsettings key, with defaults and where it gets read.</p>
+      </a>
+    </div>
+
+    <h2>How the pieces fit together</h2>
+    <p>
+      The API is a .NET 10 minimal API. It exposes four request surfaces.
+      <code>/v1/&lt;route&gt;/</code> for OpenAI-shaped traffic, <code>/anthropic/v1/&lt;route&gt;/</code>
+      for Anthropic, <code>/mcp/&lt;route&gt;</code> for MCP servers, and
+      <code>/generic/&lt;route&gt;/</code> for any other JSON API you describe in
+      route config.
+    </p>
+    <p>
+      Each surface speaks the upstream wire format byte for byte. The translation
+      pipeline only touches the human-language fields. Identifiers, schemas,
+      streaming framing, and tool argument keys stay verbatim. The admin UI
+      sits at <code>/admin</code> and is served by a Vue 3 build.
+    </p>
+
+    <h2>What you need before you start</h2>
+    <ul>
+      <li>Docker (for the quick start) or .NET 10 + Node 20 (for source).</li>
+      <li>Optionally, a translator backend. The default is <code>passthrough</code>, which leaves text unchanged so you can verify routing first.</li>
+      <li>Whichever upstream key you plan to forward (OpenAI, Anthropic, MCP server token). Your key is forwarded, not stored.</li>
+    </ul>
+
+    <div class="docs-pager">
+      <a class="pager-prev" href="../index.html">
+        <span class="pager-label">Back</span>
+        <span class="pager-title">Project home</span>
+      </a>
+      <a class="pager-next" href="getting-started.html">
+        <span class="pager-label">Next</span>
+        <span class="pager-title">Getting started <span aria-hidden="true">→</span></span>
+      </a>
+    </div>
+  </main>
+
+</div>
+
+<footer class="footer">
+  <div class="container footer-inner">
+    <div class="footer-brand">
+      <span class="brand-mark" aria-hidden="true">◆</span>
+      <span class="brand-name">adaptive<em>api</em></span>
+    </div>
+    <p class="footer-meta">
+      Built on .NET 10, Vue 3, and the official DeepL .NET SDK.<br />
+      Copyright © 2026 Tim Cadenbach. AGPL v3.
+    </p>
+    <div class="footer-links">
+      <a href="https://github.com/DeeJayTC/adaptiveapi">GitHub</a>
+      <a href="https://github.com/DeeJayTC/adaptiveapi/blob/main/LICENSE">License</a>
+      <a href="index.html">Docs</a>
+    </div>
+  </div>
+</footer>
+
+<script src="../assets/script.js" defer></script>
+</body>
+</html>

@@ -21,6 +21,10 @@ public sealed class PipelineOptions
     /// pipeline uses whatever `IPiiRedactor` the TranslationPipeline was constructed with,
     /// or a process-local RegexPiiRedactor fallback.
     public IPiiRedactor? PiiRedactor { get; init; }
+    /// Per-route detector set composed by the rule resolver. When set, regex-based
+    /// redactors (RegexPiiRedactor) honour it instead of their default detector list.
+    /// Presidio and other non-regex providers ignore this and use their own configuration.
+    public PiiDetectorSet? PiiDetectors { get; init; }
     /// Opt-in per-request capture of the raw translator inputs and outputs. When set,
     /// `TranslationPipeline` appends a `TranslationTrace` for each batch it runs.
     /// Non-null means debugging is active for this call.
@@ -68,7 +72,7 @@ public sealed class TranslationPipeline
         foreach (var site in sites)
         {
             var redaction = options.RedactPii
-                ? await redactor.RedactAsync(site.Source, ct)
+                ? await redactor.RedactAsync(site.Source, options.PiiDetectors, ct)
                 : new PiiRedactor.Result(site.Source, Array.Empty<Placeholder>());
             piiCount += redaction.Redactions.Count;
 

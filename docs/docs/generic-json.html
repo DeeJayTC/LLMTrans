@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Generic JSON API. AdaptiveAPI documentation.</title>
+<meta name="description" content="Translate any HTTP+JSON API by describing which JSON paths carry human text. No code changes on either end." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../assets/styles.css" />
+<link rel="stylesheet" href="../assets/docs.css" />
+<link rel="icon" type="image/svg+xml" href="../assets/favicon.svg" />
+</head>
+<body>
+
+<header class="nav">
+  <div class="nav-inner">
+    <a href="../index.html" class="brand">
+      <span class="brand-mark" aria-hidden="true">◆</span>
+      <span class="brand-name">adaptive<em>api</em></span>
+    </a>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="../index.html#how">How it works</a>
+      <a href="../index.html#features">Features</a>
+      <a href="index.html">Docs</a>
+      <a href="../index.html#faq">FAQ</a>
+    </nav>
+    <div class="nav-actions">
+      <button class="theme-toggle" type="button" aria-label="Toggle theme" data-theme-toggle>
+        <span class="theme-icon-light" aria-hidden="true">☀</span>
+        <span class="theme-icon-dark" aria-hidden="true">☾</span>
+      </button>
+      <a class="btn btn-ghost" href="https://github.com/DeeJayTC/adaptiveapi">GitHub</a>
+      <a class="btn btn-primary" href="style-rules.html">Next <span aria-hidden="true">→</span></a>
+    </div>
+  </div>
+</header>
+
+<div class="docs-shell">
+
+  <aside class="docs-side" aria-label="Documentation navigation">
+    <h4>Start here</h4>
+    <ul>
+      <li><a href="index.html">Overview</a></li>
+      <li><a href="getting-started.html">Getting started</a></li>
+      <li><a href="authentication.html">Authentication</a></li>
+      <li><a href="routes.html">Routes and tokens</a></li>
+    </ul>
+    <h4>Integrate</h4>
+    <ul>
+      <li><a href="llm-providers.html">LLM providers</a></li>
+      <li><a href="mcp.html">MCP servers</a></li>
+      <li><a href="generic-json.html" class="is-active">Generic JSON API</a></li>
+    </ul>
+    <h4>Features</h4>
+    <ul>
+      <li><a href="style-rules.html">Style rules &amp; customization</a></li>
+      <li><a href="pii.html">PII detection</a></li>
+      <li><a href="translation.html">Translation pipeline</a></li>
+    </ul>
+    <h4>Operate</h4>
+    <ul>
+      <li><a href="deployment.html">Deployment</a></li>
+      <li><a href="configuration.html">Configuration</a></li>
+    </ul>
+  </aside>
+
+  <main class="docs-main">
+    <span class="docs-eyebrow">Integrate</span>
+    <h1>Generic <em>JSON API</em></h1>
+    <p class="docs-lede">
+      The answer to "I want to use this with that random API our team uses."
+      You describe which JSON paths in the request and response carry human
+      text, and AdaptiveAPI handles the round trip. No code changes on either
+      end.
+    </p>
+
+    <h2>What this is for</h2>
+    <p>
+      The generic adapter handles any HTTP+JSON service. If it speaks JSON over
+      HTTP, it works. Common cases:
+    </p>
+    <ul>
+      <li>A non-OpenAI LLM provider: Cohere, Mistral, your own vLLM, an in-house model.</li>
+      <li>A search backend: ElasticSearch, Algolia, Typesense, an internal search service.</li>
+      <li>A CMS or knowledge base API.</li>
+      <li>A help-desk webhook payload that needs to land in the agent's language.</li>
+      <li>An internal microservice you do not want to teach about i18n.</li>
+      <li>A vendor API your team integrates with that does not have a typed surface.</li>
+    </ul>
+
+    <h2>The shape of a generic route</h2>
+    <p>A generic route definition has four blocks: <code>upstream</code>, <code>request</code>, <code>response</code>, and <code>direction</code>.</p>
+
+<pre><code>{
+  <span class="t-str">"upstream"</span>: {
+    <span class="t-str">"urlTemplate"</span>: <span class="t-str">"https://api.cohere.com/v1/chat"</span>,
+    <span class="t-str">"method"</span>: <span class="t-str">"POST"</span>,
+    <span class="t-str">"additionalHeaders"</span>: { <span class="t-str">"X-Client-Name"</span>: <span class="t-str">"my-app"</span> }
+  },
+  <span class="t-str">"request"</span>: {
+    <span class="t-str">"translateJsonPaths"</span>: [
+      <span class="t-str">"$.message"</span>,
+      <span class="t-str">"$.chat_history[*].message"</span>,
+      <span class="t-str">"$.tools[*].description"</span>
+    ]
+  },
+  <span class="t-str">"response"</span>: {
+    <span class="t-str">"streaming"</span>: <span class="t-str">"sse"</span>,
+    <span class="t-str">"eventPath"</span>: <span class="t-str">"$.text"</span>,
+    <span class="t-str">"finalPaths"</span>: [<span class="t-str">"$.text"</span>, <span class="t-str">"$.generations[*].text"</span>]
+  },
+  <span class="t-str">"direction"</span>: <span class="t-str">"bidirectional"</span>
+}</code></pre>
+
+    <h3><code>upstream</code></h3>
+    <ul>
+      <li><code>urlTemplate</code>. The full upstream URL. <code>{path}</code> in the template is replaced with whatever follows the route token in the inbound URL.</li>
+      <li><code>method</code>. <code>POST</code>, <code>GET</code>, <code>PUT</code>, <code>PATCH</code>, <code>DELETE</code>.</li>
+      <li><code>additionalHeaders</code>. Static headers added to every upstream call. Authorization is forwarded from the inbound request, untouched.</li>
+    </ul>
+
+    <h3><code>request</code></h3>
+    <ul>
+      <li><code>translateJsonPaths</code>. JSONPath expressions pointing at the human-text leaves to translate before forwarding. Identifiers, IDs, URLs, enum values are not in this list.</li>
+      <li><code>passThroughPaths</code>. Optional. Paths that must be preserved verbatim even if they overlap with translate paths.</li>
+    </ul>
+
+    <h3><code>response</code></h3>
+    <ul>
+      <li><code>streaming</code>. <code>none</code> for plain JSON, <code>sse</code> for Server-Sent Events, <code>ndjson</code> for line-delimited JSON.</li>
+      <li><code>eventPath</code>. For streaming responses, the JSONPath inside each event payload to translate progressively (sentence-boundary buffered).</li>
+      <li><code>finalPaths</code>. JSONPath list of fields to translate in the final non-streaming response, or in the terminal SSE event.</li>
+    </ul>
+
+    <h3><code>direction</code></h3>
+    <ul>
+      <li><code>bidirectional</code>. Translate request and response.</li>
+      <li><code>request-only</code>. Only translate the request. Useful when the upstream returns identifiers or codes you do not want translated.</li>
+      <li><code>response-only</code>. Only translate the response.</li>
+      <li><code>off</code>. Pass through. The token gate and audit log still apply.</li>
+    </ul>
+
+    <h2>Calling a generic route</h2>
+    <p>
+      The route token slots in after the <code>/generic/</code> prefix. Append
+      the upstream path if your <code>urlTemplate</code> uses <code>{path}</code>.
+    </p>
+
+<pre><code>curl -X POST <span class="t-str">"https://adaptiveapi.example.com/generic/rt_yourtenant_xxxxx/"</span> \
+  -H <span class="t-str">"Authorization: Bearer your-cohere-key"</span> \
+  -H <span class="t-str">"X-AdaptiveApi-Target-Lang: de"</span> \
+  -H <span class="t-str">"Content-Type: application/json"</span> \
+  -d '{
+    "message": "What is a hashmap?",
+    "model": "command-r"
+  }'</code></pre>
+
+    <p>
+      The request goes out to the upstream URL with the listed paths translated
+      to the source language. The response comes back with <code>finalPaths</code>
+      translated into the target language. SSE responses are buffered at sentence
+      boundaries and re-emitted as synthetic deltas, the same way the OpenAI
+      surface streams.
+    </p>
+
+    <h2>Worked examples</h2>
+
+    <h3>Custom search API</h3>
+    <p>
+      Suppose you run an internal search endpoint at
+      <code>https://search.internal/api/query</code>. It takes a query string and
+      returns ranked snippets. You want users to type in any language and get
+      results translated back.
+    </p>
+
+<pre><code>{
+  <span class="t-str">"upstream"</span>: {
+    <span class="t-str">"urlTemplate"</span>: <span class="t-str">"https://search.internal/api/query"</span>,
+    <span class="t-str">"method"</span>: <span class="t-str">"POST"</span>
+  },
+  <span class="t-str">"request"</span>: {
+    <span class="t-str">"translateJsonPaths"</span>: [<span class="t-str">"$.query"</span>]
+  },
+  <span class="t-str">"response"</span>: {
+    <span class="t-str">"streaming"</span>: <span class="t-str">"none"</span>,
+    <span class="t-str">"finalPaths"</span>: [
+      <span class="t-str">"$.results[*].title"</span>,
+      <span class="t-str">"$.results[*].snippet"</span>
+    ]
+  },
+  <span class="t-str">"direction"</span>: <span class="t-str">"bidirectional"</span>
+}</code></pre>
+
+    <p>
+      The user's German query is translated to English before the search engine
+      sees it. Each result's title and snippet come back translated to German.
+      <code>results[*].url</code> and <code>results[*].id</code> are not in the
+      list, so they survive verbatim.
+    </p>
+
+    <h3>Streaming chat API</h3>
+    <p>
+      Same shape, but the upstream emits SSE. The <code>eventPath</code> tells
+      AdaptiveAPI which field of each event payload to translate progressively.
+    </p>
+
+<pre><code>{
+  <span class="t-str">"upstream"</span>: {
+    <span class="t-str">"urlTemplate"</span>: <span class="t-str">"https://your-llm.example/chat/stream"</span>,
+    <span class="t-str">"method"</span>: <span class="t-str">"POST"</span>
+  },
+  <span class="t-str">"request"</span>: {
+    <span class="t-str">"translateJsonPaths"</span>: [<span class="t-str">"$.prompt"</span>, <span class="t-str">"$.context[*].text"</span>]
+  },
+  <span class="t-str">"response"</span>: {
+    <span class="t-str">"streaming"</span>: <span class="t-str">"sse"</span>,
+    <span class="t-str">"eventPath"</span>: <span class="t-str">"$.delta"</span>,
+    <span class="t-str">"finalPaths"</span>: [<span class="t-str">"$.final.text"</span>]
+  },
+  <span class="t-str">"direction"</span>: <span class="t-str">"bidirectional"</span>
+}</code></pre>
+
+    <h3>Help-desk webhook ingestion</h3>
+    <p>
+      Inbound webhook from a help-desk vendor. The agent reads German. The body
+      arrives in whatever the customer wrote.
+    </p>
+
+<pre><code>{
+  <span class="t-str">"upstream"</span>: {
+    <span class="t-str">"urlTemplate"</span>: <span class="t-str">"https://your-helpdesk.internal/webhooks/inbound"</span>,
+    <span class="t-str">"method"</span>: <span class="t-str">"POST"</span>
+  },
+  <span class="t-str">"request"</span>: {
+    <span class="t-str">"translateJsonPaths"</span>: [
+      <span class="t-str">"$.subject"</span>,
+      <span class="t-str">"$.body"</span>,
+      <span class="t-str">"$.thread[*].body"</span>
+    ]
+  },
+  <span class="t-str">"response"</span>: { <span class="t-str">"streaming"</span>: <span class="t-str">"none"</span> },
+  <span class="t-str">"direction"</span>: <span class="t-str">"request-only"</span>
+}</code></pre>
+
+    <h2>What survives verbatim</h2>
+    <p>
+      Anything not listed in <code>translateJsonPaths</code>, <code>eventPath</code>,
+      or <code>finalPaths</code> passes through untouched. That includes:
+    </p>
+    <ul>
+      <li>IDs, UUIDs, slugs, codes, enum values.</li>
+      <li>URLs, file paths, content hashes.</li>
+      <li>Numeric scores, booleans, timestamps.</li>
+      <li>Headers (other than <code>X-AdaptiveApi-*</code>, which are stripped).</li>
+      <li>Status codes, content types, and SSE framing.</li>
+    </ul>
+    <p>
+      That makes the generic adapter safe to point at APIs whose responses mix
+      human text with machine fields, which is most of them.
+    </p>
+
+    <h2>Combining with style rules and glossaries</h2>
+    <p>
+      A generic route can bind to a style rule and a glossary the same way the
+      typed routes do. The DeepL v3 style rule applies to translation calls made
+      from the route, including locale-aware formatting (number formats, date
+      formats, formality). See <a href="style-rules.html">Style rules &amp; customization</a>
+      for the locale-formatting story.
+    </p>
+
+    <blockquote>
+      <p>
+        <strong>Tip.</strong> Start with <code>direction: "off"</code> when you
+        first wire up an unfamiliar API. AdaptiveAPI will route and audit
+        requests without touching the bodies, so you can verify the URL and auth
+        flow before turning translation on.
+      </p>
+    </blockquote>
+
+    <div class="docs-pager">
+      <a class="pager-prev" href="mcp.html">
+        <span class="pager-label">Previous</span>
+        <span class="pager-title">MCP servers</span>
+      </a>
+      <a class="pager-next" href="style-rules.html">
+        <span class="pager-label">Next</span>
+        <span class="pager-title">Style rules &amp; customization <span aria-hidden="true">→</span></span>
+      </a>
+    </div>
+  </main>
+
+</div>
+
+<footer class="footer">
+  <div class="container footer-inner">
+    <div class="footer-brand">
+      <span class="brand-mark" aria-hidden="true">◆</span>
+      <span class="brand-name">adaptive<em>api</em></span>
+    </div>
+    <p class="footer-meta">
+      Built on .NET 10, Vue 3, and the official DeepL .NET SDK.<br />
+      Copyright © 2026 Tim Cadenbach. AGPL v3.
+    </p>
+    <div class="footer-links">
+      <a href="https://github.com/DeeJayTC/adaptiveapi">GitHub</a>
+      <a href="https://github.com/DeeJayTC/adaptiveapi/blob/main/LICENSE">License</a>
+      <a href="index.html">Docs</a>
+    </div>
+  </div>
+</footer>
+
+<script src="../assets/script.js" defer></script>
+</body>
+</html>

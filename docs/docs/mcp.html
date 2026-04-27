@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MCP servers. AdaptiveAPI documentation.</title>
+<meta name="description" content="Translate every MCP server (remote and stdio) without changing your client or your credentials." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../assets/styles.css" />
+<link rel="stylesheet" href="../assets/docs.css" />
+<link rel="icon" type="image/svg+xml" href="../assets/favicon.svg" />
+</head>
+<body>
+
+<header class="nav">
+  <div class="nav-inner">
+    <a href="../index.html" class="brand">
+      <span class="brand-mark" aria-hidden="true">◆</span>
+      <span class="brand-name">adaptive<em>api</em></span>
+    </a>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="../index.html#how">How it works</a>
+      <a href="../index.html#features">Features</a>
+      <a href="index.html">Docs</a>
+      <a href="../index.html#faq">FAQ</a>
+    </nav>
+    <div class="nav-actions">
+      <button class="theme-toggle" type="button" aria-label="Toggle theme" data-theme-toggle>
+        <span class="theme-icon-light" aria-hidden="true">☀</span>
+        <span class="theme-icon-dark" aria-hidden="true">☾</span>
+      </button>
+      <a class="btn btn-ghost" href="https://github.com/DeeJayTC/adaptiveapi">GitHub</a>
+      <a class="btn btn-primary" href="generic-json.html">Next <span aria-hidden="true">→</span></a>
+    </div>
+  </div>
+</header>
+
+<div class="docs-shell">
+
+  <aside class="docs-side" aria-label="Documentation navigation">
+    <h4>Start here</h4>
+    <ul>
+      <li><a href="index.html">Overview</a></li>
+      <li><a href="getting-started.html">Getting started</a></li>
+      <li><a href="authentication.html">Authentication</a></li>
+      <li><a href="routes.html">Routes and tokens</a></li>
+    </ul>
+    <h4>Integrate</h4>
+    <ul>
+      <li><a href="llm-providers.html">LLM providers</a></li>
+      <li><a href="mcp.html" class="is-active">MCP servers</a></li>
+      <li><a href="generic-json.html">Generic JSON API</a></li>
+    </ul>
+    <h4>Features</h4>
+    <ul>
+      <li><a href="style-rules.html">Style rules &amp; customization</a></li>
+      <li><a href="pii.html">PII detection</a></li>
+      <li><a href="translation.html">Translation pipeline</a></li>
+    </ul>
+    <h4>Operate</h4>
+    <ul>
+      <li><a href="deployment.html">Deployment</a></li>
+      <li><a href="configuration.html">Configuration</a></li>
+    </ul>
+  </aside>
+
+  <main class="docs-main">
+    <span class="docs-eyebrow">Integrate</span>
+    <h1>MCP <em>servers</em></h1>
+    <p class="docs-lede">
+      Point any MCP client (Claude Desktop, Cursor, Zed, VS Code with Continue)
+      at AdaptiveAPI, and every MCP server it talks to now speaks your language.
+      Tool descriptions, tool arguments, tool results, and prompts all flow
+      through the translation pipeline without changes to your client.
+    </p>
+
+    <h2>Two flavours, same pipeline</h2>
+    <p>
+      MCP servers come in two shapes. AdaptiveAPI handles both, but the wiring
+      differs.
+    </p>
+    <ul>
+      <li><strong>Remote MCP servers</strong> speak HTTP+JSON-RPC. Linear, Atlassian, Sentry, Stripe, Zoom, and most hosted vendors. AdaptiveAPI proxies the URL directly.</li>
+      <li><strong>Stdio MCP servers</strong> are local-spawned processes. GitHub, GitLab, Slack, Postgres, filesystem, and most community servers. AdaptiveAPI sees only the JSON-RPC bodies through a thin local bridge.</li>
+    </ul>
+
+    <h2>Remote MCP servers</h2>
+    <p>
+      Change the <code>url</code> in your client's MCP config to the AdaptiveAPI
+      route. The original upstream URL is configured on the route itself, in the
+      admin UI.
+    </p>
+
+<pre><code>{
+  <span class="t-str">"mcpServers"</span>: {
+    <span class="t-str">"linear-de"</span>: {
+      <span class="t-str">"url"</span>: <span class="t-str">"https://adaptiveapi.example.com/mcp/rt_yourtenant_xxxxx"</span>,
+      <span class="t-str">"headers"</span>: {
+        <span class="t-str">"Authorization"</span>: <span class="t-str">"Bearer &lt;your-linear-oauth-token&gt;"</span>
+      }
+    }
+  }
+}</code></pre>
+
+    <p>
+      Your OAuth token rides upstream byte identical. AdaptiveAPI never stores
+      or logs it. Only a SHA-256 fingerprint of the <code>Authorization</code>
+      header lands in the audit log, never the value itself.
+    </p>
+
+    <h3>The catalog</h3>
+    <p>
+      The admin UI's <code>/mcp/catalog</code> page ships a curated list of
+      15 popular servers pre-configured (Linear, Atlassian, Sentry, Stripe, Zoom,
+      and more). One click gives you a copy-paste snippet for Claude Desktop,
+      Cursor, Zed, VS Code with Continue, or raw JSON. The catalog file lives at
+      <code>catalog/mcp-servers.json</code> in the repo and is configurable via
+      <code>Mcp__CatalogFile</code>.
+    </p>
+
+    <h2>Stdio MCP servers</h2>
+    <p>
+      Stdio servers are processes the MCP client spawns locally. They typically
+      handle credentials that should never leave your machine (a GitHub PAT, a
+      Postgres connection string, a filesystem mount). AdaptiveAPI does not want
+      to see those credentials, and the translation pipeline does not need them.
+    </p>
+    <p>
+      The local bridge wraps the existing stdio command, intercepts the JSON-RPC
+      bodies, sends them to AdaptiveAPI's stateless translate API, and forwards
+      the translated bodies to the real upstream process.
+    </p>
+
+<pre><code><span class="t-com"># Claude Desktop config (mcp.json)</span>
+{
+  <span class="t-str">"mcpServers"</span>: {
+    <span class="t-str">"github-de"</span>: {
+      <span class="t-str">"command"</span>: <span class="t-str">"npx"</span>,
+      <span class="t-str">"args"</span>: [
+        <span class="t-str">"-y"</span>, <span class="t-str">"@adaptiveapi/mcp-bridge"</span>,
+        <span class="t-str">"--target-lang"</span>, <span class="t-str">"de"</span>,
+        <span class="t-str">"--upstream"</span>, <span class="t-str">"npx"</span>, <span class="t-str">"-y"</span>, <span class="t-str">"@modelcontextprotocol/server-github"</span>
+      ],
+      <span class="t-str">"env"</span>: {
+        <span class="t-str">"GITHUB_PERSONAL_ACCESS_TOKEN"</span>: <span class="t-str">"ghp_..."</span>,
+        <span class="t-str">"ADAPTIVEAPI_TRANSLATE_URL"</span>: <span class="t-str">"https://adaptiveapi.example.com/v1/translate/rt_yourtenant_xxxxx"</span>
+      }
+    }
+  }
+}</code></pre>
+
+    <p>
+      Your GitHub token never leaves your machine. The MCP server process
+      receives it via env vars, exactly as it does today. Only the JSON-RPC
+      bodies (translated request, translated response) flow through AdaptiveAPI.
+    </p>
+
+    <h3>Distribution</h3>
+    <ul>
+      <li><strong>npm</strong>. <code>@adaptiveapi/mcp-bridge</code>. Works anywhere Node is installed.</li>
+      <li><strong>Static Go binary</strong>. For environments where you do not want a Node runtime. Single executable, no dependencies.</li>
+    </ul>
+
+    <h2>What gets translated</h2>
+    <p>The translation pipeline walks the JSON-RPC payload and translates only the human-text fields:</p>
+    <ul>
+      <li><strong>Tool descriptions</strong>. <code>tools/list</code> response. The model sees them in source language, your user reads them in target language.</li>
+      <li><strong>Tool argument descriptions</strong>. JSON Schema <code>description</code> fields.</li>
+      <li><strong>Tool call arguments</strong>. Walked with the same key-aware denylist as OpenAI's <code>arguments</code>. Identifiers, slugs, and URLs survive verbatim.</li>
+      <li><strong>Tool results</strong>. Text content from <code>content[*].text</code> entries.</li>
+      <li><strong>Prompts</strong>. <code>prompts/get</code> messages.</li>
+    </ul>
+    <p>JSON-RPC envelope (<code>id</code>, <code>method</code>, <code>jsonrpc</code>) is never touched. Result schemas are preserved.</p>
+
+    <blockquote>
+      <p>
+        <strong>Note.</strong> Some MCP servers stream large amounts of data
+        (file listings, search results). AdaptiveAPI only translates the human-text
+        leaves you point at via the per-route <code>translateJsonPaths</code>
+        config. Identifiers, paths, and metadata do not get translated, so
+        downstream code that expects exact strings keeps working.
+      </p>
+    </blockquote>
+
+    <div class="docs-pager">
+      <a class="pager-prev" href="llm-providers.html">
+        <span class="pager-label">Previous</span>
+        <span class="pager-title">LLM providers</span>
+      </a>
+      <a class="pager-next" href="generic-json.html">
+        <span class="pager-label">Next</span>
+        <span class="pager-title">Generic JSON API <span aria-hidden="true">→</span></span>
+      </a>
+    </div>
+  </main>
+
+</div>
+
+<footer class="footer">
+  <div class="container footer-inner">
+    <div class="footer-brand">
+      <span class="brand-mark" aria-hidden="true">◆</span>
+      <span class="brand-name">adaptive<em>api</em></span>
+    </div>
+    <p class="footer-meta">
+      Built on .NET 10, Vue 3, and the official DeepL .NET SDK.<br />
+      Copyright © 2026 Tim Cadenbach. AGPL v3.
+    </p>
+    <div class="footer-links">
+      <a href="https://github.com/DeeJayTC/adaptiveapi">GitHub</a>
+      <a href="https://github.com/DeeJayTC/adaptiveapi/blob/main/LICENSE">License</a>
+      <a href="index.html">Docs</a>
+    </div>
+  </div>
+</footer>
+
+<script src="../assets/script.js" defer></script>
+</body>
+</html>

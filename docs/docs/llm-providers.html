@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>LLM providers. AdaptiveAPI documentation.</title>
+<meta name="description" content="Drop-in patterns for OpenAI and Anthropic. Same SDK, same keys, new base URL." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../assets/styles.css" />
+<link rel="stylesheet" href="../assets/docs.css" />
+<link rel="icon" type="image/svg+xml" href="../assets/favicon.svg" />
+</head>
+<body>
+
+<header class="nav">
+  <div class="nav-inner">
+    <a href="../index.html" class="brand">
+      <span class="brand-mark" aria-hidden="true">◆</span>
+      <span class="brand-name">adaptive<em>api</em></span>
+    </a>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="../index.html#how">How it works</a>
+      <a href="../index.html#features">Features</a>
+      <a href="index.html">Docs</a>
+      <a href="../index.html#faq">FAQ</a>
+    </nav>
+    <div class="nav-actions">
+      <button class="theme-toggle" type="button" aria-label="Toggle theme" data-theme-toggle>
+        <span class="theme-icon-light" aria-hidden="true">☀</span>
+        <span class="theme-icon-dark" aria-hidden="true">☾</span>
+      </button>
+      <a class="btn btn-ghost" href="https://github.com/DeeJayTC/adaptiveapi">GitHub</a>
+      <a class="btn btn-primary" href="mcp.html">Next <span aria-hidden="true">→</span></a>
+    </div>
+  </div>
+</header>
+
+<div class="docs-shell">
+
+  <aside class="docs-side" aria-label="Documentation navigation">
+    <h4>Start here</h4>
+    <ul>
+      <li><a href="index.html">Overview</a></li>
+      <li><a href="getting-started.html">Getting started</a></li>
+      <li><a href="authentication.html">Authentication</a></li>
+      <li><a href="routes.html">Routes and tokens</a></li>
+    </ul>
+    <h4>Integrate</h4>
+    <ul>
+      <li><a href="llm-providers.html" class="is-active">LLM providers</a></li>
+      <li><a href="mcp.html">MCP servers</a></li>
+      <li><a href="generic-json.html">Generic JSON API</a></li>
+    </ul>
+    <h4>Features</h4>
+    <ul>
+      <li><a href="style-rules.html">Style rules &amp; customization</a></li>
+      <li><a href="pii.html">PII detection</a></li>
+      <li><a href="translation.html">Translation pipeline</a></li>
+    </ul>
+    <h4>Operate</h4>
+    <ul>
+      <li><a href="deployment.html">Deployment</a></li>
+      <li><a href="configuration.html">Configuration</a></li>
+    </ul>
+  </aside>
+
+  <main class="docs-main">
+    <span class="docs-eyebrow">Integrate</span>
+    <h1>LLM <em>providers</em></h1>
+    <p class="docs-lede">
+      OpenAI and Anthropic ride on typed wire-format surfaces. Change one URL,
+      keep your SDK. Streaming, tool calls, and JSON shape all survive the round
+      trip. No changes to retries, auth, or response parsing.
+    </p>
+
+    <h2>OpenAI</h2>
+    <p>The OpenAI surface mounts under <code>/v1/&lt;route&gt;/</code> and speaks the full Chat Completions and Responses APIs.</p>
+
+<pre><code><span class="t-key">from</span> openai <span class="t-key">import</span> OpenAI
+
+client = OpenAI(
+    api_key=<span class="t-str">"sk-..."</span>,
+    base_url=<span class="t-str">"https://adaptiveapi.example.com/v1/rt_yourtenant_xxxxx"</span>,
+)
+
+resp = client.chat.completions.create(
+    model=<span class="t-str">"gpt-4o-mini"</span>,
+    messages=[{<span class="t-str">"role"</span>: <span class="t-str">"user"</span>,
+               <span class="t-str">"content"</span>: <span class="t-str">"Was ist eine Hashmap?"</span>}],
+    extra_headers={<span class="t-str">"X-AdaptiveApi-Target-Lang"</span>: <span class="t-str">"de"</span>},
+    stream=<span class="t-key">True</span>,
+)
+<span class="t-key">for</span> chunk <span class="t-key">in</span> resp:
+    <span class="t-key">print</span>(chunk.choices[<span class="t-num">0</span>].delta.content <span class="t-key">or</span> <span class="t-str">""</span>, end=<span class="t-str">""</span>)</code></pre>
+
+    <h3>What is supported</h3>
+    <ul>
+      <li><strong>Chat Completions</strong>. Messages, system prompts, multi-turn, streaming.</li>
+      <li><strong>Responses API</strong>. Same wire format, same translation rules.</li>
+      <li><strong>Tool calls</strong>. <code>tool_calls[*].function.arguments</code> is JSON-in-JSON. The pipeline parses the inner JSON, walks it with a key-aware denylist, translates the human-text leaves, and re-serialises. <code>tool_call_id</code>, <code>function.name</code>, and argument keys are preserved verbatim.</li>
+      <li><strong>Streaming</strong>. Sentence-boundary buffering by default, progressive available per request. See <a href="translation.html">Translation pipeline</a>.</li>
+      <li><strong>Vision and audio</strong>. Image and audio parts pass through. Only text parts are translated.</li>
+    </ul>
+
+    <h3>What you change</h3>
+    <p>One thing. The base URL.</p>
+    <p>Everything else (your retries, your timeouts, your error handling, your streaming consumer) stays untouched.</p>
+
+    <h2>Anthropic</h2>
+    <p>The Anthropic surface mounts under <code>/anthropic/v1/&lt;route&gt;/</code> and speaks the Messages API.</p>
+
+<pre><code><span class="t-key">import</span> anthropic
+
+client = anthropic.Anthropic(
+    api_key=<span class="t-str">"sk-ant-..."</span>,
+    base_url=<span class="t-str">"https://adaptiveapi.example.com/anthropic/v1/rt_yourtenant_xxxxx"</span>,
+)
+
+message = client.messages.create(
+    model=<span class="t-str">"claude-3-7-sonnet-latest"</span>,
+    max_tokens=<span class="t-num">1024</span>,
+    system=<span class="t-str">"Tu es un assistant serviable."</span>,
+    messages=[{<span class="t-str">"role"</span>: <span class="t-str">"user"</span>,
+               <span class="t-str">"content"</span>: <span class="t-str">"Explique-moi le théorème de Pythagore."</span>}],
+    extra_headers={<span class="t-str">"X-AdaptiveApi-Target-Lang"</span>: <span class="t-str">"fr"</span>},
+)</code></pre>
+
+    <h3>What is supported</h3>
+    <ul>
+      <li><strong>Messages API</strong>. System prompts, multi-turn, streaming, tool use.</li>
+      <li><strong>System prompts</strong>. Translated alongside user messages so the model receives a consistent working language.</li>
+      <li><strong>Tool use blocks</strong>. <code>input</code> JSON is walked the same way as OpenAI's <code>arguments</code>.</li>
+      <li><strong>Content blocks</strong>. Text blocks are translated. Image blocks pass through.</li>
+    </ul>
+
+    <h2>Other providers</h2>
+    <p>
+      Cohere, Mistral, Azure OpenAI, Together, Groq, your local vLLM, and
+      anything else with an HTTP+JSON shape goes through the
+      <a href="generic-json.html">Generic JSON API</a> instead. You describe
+      which JSON paths carry human text and AdaptiveAPI handles the round trip.
+    </p>
+
+    <blockquote>
+      <p>
+        <strong>Tip.</strong> If a provider implements an OpenAI-compatible
+        endpoint (Together, Groq, Mistral La Plateforme, vLLM, etc.), you can
+        often use the OpenAI surface above by setting the route's upstream to
+        their base URL. Saves writing a generic-route definition.
+      </p>
+    </blockquote>
+
+    <h2>Headers and overrides</h2>
+    <p>Every <code>X-AdaptiveApi-*</code> header is stripped before the request reaches the upstream. They never leak into your model context. The headers you can use:</p>
+    <table>
+      <thead>
+        <tr><th>Header</th><th>Example</th><th>Purpose</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>X-AdaptiveApi-Target-Lang</code></td><td><code>de</code></td><td>What the caller speaks.</td></tr>
+        <tr><td><code>X-AdaptiveApi-Source-Lang</code></td><td><code>en</code></td><td>What the model thinks in.</td></tr>
+        <tr><td><code>X-AdaptiveApi-Mode</code></td><td><code>bidirectional</code></td><td>Direction toggle.</td></tr>
+        <tr><td><code>X-AdaptiveApi-Style-Rule</code></td><td><code>s_marketing</code></td><td>Apply a style rule. See <a href="style-rules.html">Style rules</a>.</td></tr>
+        <tr><td><code>X-AdaptiveApi-Glossary</code></td><td><code>g_default</code></td><td>Apply a glossary.</td></tr>
+      </tbody>
+    </table>
+    <p>Full list lives in <a href="routes.html">Routes and tokens</a>.</p>
+
+    <div class="docs-pager">
+      <a class="pager-prev" href="routes.html">
+        <span class="pager-label">Previous</span>
+        <span class="pager-title">Routes and tokens</span>
+      </a>
+      <a class="pager-next" href="mcp.html">
+        <span class="pager-label">Next</span>
+        <span class="pager-title">MCP servers <span aria-hidden="true">→</span></span>
+      </a>
+    </div>
+  </main>
+
+</div>
+
+<footer class="footer">
+  <div class="container footer-inner">
+    <div class="footer-brand">
+      <span class="brand-mark" aria-hidden="true">◆</span>
+      <span class="brand-name">adaptive<em>api</em></span>
+    </div>
+    <p class="footer-meta">
+      Built on .NET 10, Vue 3, and the official DeepL .NET SDK.<br />
+      Copyright © 2026 Tim Cadenbach. AGPL v3.
+    </p>
+    <div class="footer-links">
+      <a href="https://github.com/DeeJayTC/adaptiveapi">GitHub</a>
+      <a href="https://github.com/DeeJayTC/adaptiveapi/blob/main/LICENSE">License</a>
+      <a href="index.html">Docs</a>
+    </div>
+  </div>
+</footer>
+
+<script src="../assets/script.js" defer></script>
+</body>
+</html>

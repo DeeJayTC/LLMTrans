@@ -222,6 +222,7 @@ public sealed class GenericAdapter : IProviderAdapter
             DoNotTranslateTerms = rules.DoNotTranslateFor(source.Value, target.Value),
             Formality = rules.Formality,
             RedactPii = rules.RedactPii,
+            PiiDetectors = rules.PiiDetectors,
             Context = rules.SystemContext,
         }, ct);
 
@@ -249,6 +250,7 @@ public sealed class GenericAdapter : IProviderAdapter
             DoNotTranslateTerms = rules.DoNotTranslateFor(source.Value, target.Value),
             Formality = rules.Formality,
             RedactPii = rules.RedactPii,
+            PiiDetectors = rules.PiiDetectors,
             Context = rules.SystemContext,
         }, ct);
 

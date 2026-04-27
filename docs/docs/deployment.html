@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Deployment. AdaptiveAPI documentation.</title>
+<meta name="description" content="Docker compose, Helm chart, and source builds for AdaptiveAPI." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../assets/styles.css" />
+<link rel="stylesheet" href="../assets/docs.css" />
+<link rel="icon" type="image/svg+xml" href="../assets/favicon.svg" />
+</head>
+<body>
+
+<header class="nav">
+  <div class="nav-inner">
+    <a href="../index.html" class="brand">
+      <span class="brand-mark" aria-hidden="true">◆</span>
+      <span class="brand-name">adaptive<em>api</em></span>
+    </a>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="../index.html#how">How it works</a>
+      <a href="../index.html#features">Features</a>
+      <a href="index.html">Docs</a>
+      <a href="../index.html#faq">FAQ</a>
+    </nav>
+    <div class="nav-actions">
+      <button class="theme-toggle" type="button" aria-label="Toggle theme" data-theme-toggle>
+        <span class="theme-icon-light" aria-hidden="true">☀</span>
+        <span class="theme-icon-dark" aria-hidden="true">☾</span>
+      </button>
+      <a class="btn btn-ghost" href="https://github.com/DeeJayTC/adaptiveapi">GitHub</a>
+      <a class="btn btn-primary" href="configuration.html">Next <span aria-hidden="true">→</span></a>
+    </div>
+  </div>
+</header>
+
+<div class="docs-shell">
+
+  <aside class="docs-side" aria-label="Documentation navigation">
+    <h4>Start here</h4>
+    <ul>
+      <li><a href="index.html">Overview</a></li>
+      <li><a href="getting-started.html">Getting started</a></li>
+      <li><a href="authentication.html">Authentication</a></li>
+      <li><a href="routes.html">Routes and tokens</a></li>
+    </ul>
+    <h4>Integrate</h4>
+    <ul>
+      <li><a href="llm-providers.html">LLM providers</a></li>
+      <li><a href="mcp.html">MCP servers</a></li>
+      <li><a href="generic-json.html">Generic JSON API</a></li>
+    </ul>
+    <h4>Features</h4>
+    <ul>
+      <li><a href="style-rules.html">Style rules &amp; customization</a></li>
+      <li><a href="pii.html">PII detection</a></li>
+      <li><a href="translation.html">Translation pipeline</a></li>
+    </ul>
+    <h4>Operate</h4>
+    <ul>
+      <li><a href="deployment.html" class="is-active">Deployment</a></li>
+      <li><a href="configuration.html">Configuration</a></li>
+    </ul>
+  </aside>
+
+  <main class="docs-main">
+    <span class="docs-eyebrow">Operate</span>
+    <h1><em>Deployment</em></h1>
+    <p class="docs-lede">
+      Three supported shapes. Docker compose for solo and small-team installs.
+      Helm for Kubernetes. Source builds for development. Pick whichever
+      matches what you already run.
+    </p>
+
+    <h2>Docker compose</h2>
+    <p>
+      The bundled <code>deploy/docker-compose.yml</code> runs the API, the admin
+      UI, and a SQLite volume. Postgres, Redis, and an OTLP collector are
+      pre-wired and commented out for when you outgrow SQLite.
+    </p>
+
+<pre><code><span class="t-key">cd</span> deploy
+cp .env.example .env
+docker compose up --build</code></pre>
+
+    <ul>
+      <li>API on <code>:8080</code>.</li>
+      <li>Admin UI on <code>:8000</code>.</li>
+      <li>SQLite volume mounted at <code>/data</code> in the API container.</li>
+    </ul>
+
+    <h3>Adding the chat demo</h3>
+    <p>
+      A self-contained demo (a small .NET backend plus a Vue chat UI) ships under
+      the <code>demo</code> profile. Run alongside the main stack:
+    </p>
+<pre><code>docker compose --profile demo up --build</code></pre>
+    <p>The demo UI lands on <code>:8100</code>.</p>
+
+    <h3>Switching to Postgres</h3>
+    <p>Uncomment the <code>postgres</code> service in the compose file and set:</p>
+<pre><code>Database__Provider=Postgres
+Database__ConnectionString=Host=postgres;Database=adaptiveapi;Username=adaptiveapi;Password=...</code></pre>
+    <p>SQLite remains the right choice for solo and small-team setups. Postgres earns its keep when you need replicas, point-in-time recovery, or shared deployments across nodes.</p>
+
+    <h3>Adding Redis</h3>
+    <p>
+      Optional. Used for translation cache, rate limits, and route cache.
+      Uncomment the <code>redis</code> service and set <code>Redis__ConnectionString</code> on the API.
+    </p>
+
+    <h2>Helm</h2>
+    <p>The chart in <code>deploy/helm/</code> provisions:</p>
+    <ul>
+      <li>Two Deployments (API + UI), a Service each.</li>
+      <li>An Ingress with SSE-friendly annotations.</li>
+      <li>A Horizontal Pod Autoscaler on CPU (2 to 10 replicas).</li>
+      <li>A Pod Disruption Budget with <code>minAvailable: 1</code>.</li>
+      <li>A PVC for SQLite when you have not pointed at an external database.</li>
+    </ul>
+
+<pre><code>helm install adaptiveapi ./deploy/helm \
+  --set database.provider=Postgres \
+  --set database.existingSecret.name=adaptiveapi-db \
+  --set translators.existingSecret=adaptiveapi-translators \
+  --set ingress.host=adaptiveapi.yourdomain.com</code></pre>
+
+    <p>
+      Full values reference and chart-specific notes live in
+      <code>deploy/helm/README.md</code>.
+    </p>
+
+    <h2>From source</h2>
+    <p>
+      Two terminals. The API is a .NET 10 minimal API. The admin UI is a Vue 3
+      Vite app.
+    </p>
+<pre><code><span class="t-com"># terminal 1: API</span>
+<span class="t-key">cd</span> src/AdaptiveApi.Api
+dotnet run --urls http://localhost:5000
+
+<span class="t-com"># terminal 2: admin UI</span>
+<span class="t-key">cd</span> src/AdaptiveApi.Ui
+npm install
+npm run dev   <span class="t-com"># UI on :5173, proxies /api to :5000</span></code></pre>
+
+    <h2>Production checklist</h2>
+    <ul>
+      <li><strong>Run an external database.</strong> Postgres or SQL Server. SQLite is fine for one node, not for replicas.</li>
+      <li><strong>Enable Redis.</strong> Translation cache + rate limits + route cache. Cuts cost and tail latency.</li>
+      <li><strong>Front it with TLS.</strong> The Helm Ingress accepts cert-manager annotations.</li>
+      <li><strong>Turn on OIDC.</strong> Open dev mode is fine for local. Production needs auth on <code>/admin</code>.</li>
+      <li><strong>Wire OTLP.</strong> Set <code>OTEL_EXPORTER_OTLP_ENDPOINT</code> to your collector. Spans cover the full pipeline.</li>
+      <li><strong>Alert on integrity failures.</strong> <code>adaptiveapi_placeholder_integrity_failures_total</code> above 0.5% means something is dropping placeholders.</li>
+    </ul>
+
+    <h2>Plugins</h2>
+    <p>
+      AdaptiveAPI supports an in-process plugin loader for things you do not want
+      in the open-source repo. Drop a DLL implementing
+      <code>AdaptiveApi.Core.Plugins.IWebPlugin</code> next to the binary, or
+      mount it under <code>/app/plugins/</code>. <code>ConfigureServices</code>
+      runs before <code>builder.Build()</code>, <code>Map</code> after.
+    </p>
+    <p>
+      The SaaS-only features (organisations, invites, SCIM, Stripe metered
+      billing) are shipped this way. No compile-time coupling.
+    </p>
+
+    <div class="docs-pager">
+      <a class="pager-prev" href="translation.html">
+        <span class="pager-label">Previous</span>
+        <span class="pager-title">Translation pipeline</span>
+      </a>
+      <a class="pager-next" href="configuration.html">
+        <span class="pager-label">Next</span>
+        <span class="pager-title">Configuration <span aria-hidden="true">→</span></span>
+      </a>
+    </div>
+  </main>
+
+</div>
+
+<footer class="footer">
+  <div class="container footer-inner">
+    <div class="footer-brand">
+      <span class="brand-mark" aria-hidden="true">◆</span>
+      <span class="brand-name">adaptive<em>api</em></span>
+    </div>
+    <p class="footer-meta">
+      Built on .NET 10, Vue 3, and the official DeepL .NET SDK.<br />
+      Copyright © 2026 Tim Cadenbach. AGPL v3.
+    </p>
+    <div class="footer-links">
+      <a href="https://github.com/DeeJayTC/adaptiveapi">GitHub</a>
+      <a href="https://github.com/DeeJayTC/adaptiveapi/blob/main/LICENSE">License</a>
+      <a href="index.html">Docs</a>
+    </div>
+  </div>
+</footer>
+
+<script src="../assets/script.js" defer></script>
+</body>
+</html>

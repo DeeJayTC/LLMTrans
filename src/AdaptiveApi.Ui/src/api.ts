@@ -1,5 +1,6 @@
 import type {
-  Glossary, McpCatalogEntry, McpServer, ProxyRule, Route, StyleRule, Tenant,
+  Glossary, McpCatalogEntry, McpServer, PiiPack, PiiRule, PiiRuleFlags,
+  PiiTestRequest, PiiTestResponse, ProxyRule, Route, StyleRule, Tenant,
 } from './types';
 
 class ApiError extends Error {
@@ -77,6 +78,25 @@ export const api = {
     list: () => get<ProxyRule[]>('/admin/proxy-rules'),
     create: (body: unknown) => post<ProxyRule>('/admin/proxy-rules', body),
     delete: (id: string) => del<void>(`/admin/proxy-rules/${id}`),
+  },
+  piiPacks: {
+    list: () => get<PiiPack[]>('/admin/pii-packs'),
+    get: (slug: string) => get<PiiPack>(`/admin/pii-packs/${slug}`),
+  },
+  piiRules: {
+    list: (tenantId?: string) => get<PiiRule[]>(
+      tenantId ? `/admin/pii-rules?tenantId=${encodeURIComponent(tenantId)}` : '/admin/pii-rules'),
+    get: (id: string) => get<PiiRule>(`/admin/pii-rules/${id}`),
+    create: (body: {
+      id: string; tenantId: string; name: string; pattern: string; replacement: string;
+      description?: string | null; flags?: PiiRuleFlags; enabled?: boolean;
+    }) => post<PiiRule>('/admin/pii-rules', body),
+    update: (id: string, body: Partial<{
+      name: string; pattern: string; replacement: string;
+      description: string | null; flags: PiiRuleFlags; enabled: boolean;
+    }>) => patch<PiiRule>(`/admin/pii-rules/${id}`, body),
+    delete: (id: string) => del<void>(`/admin/pii-rules/${id}`),
+    test: (body: PiiTestRequest) => post<PiiTestResponse>('/admin/pii-rules/test', body),
   },
   logs: {
     list: (params: { tenantId?: string; routeId?: string; status?: number; before?: number; limit?: number } = {}) => {

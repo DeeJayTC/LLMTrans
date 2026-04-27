@@ -2,63 +2,46 @@ using System.Text.RegularExpressions;
 
 namespace AdaptiveApi.Core.Pipeline;
 
-/// Replaces common PII patterns with `<adaptiveapi id="PII_KIND_n"/>` tags so the upstream LLM
-/// sees a stable substitute (e.g. `[redacted-email]`) instead of the original value.
+/// Replaces detected PII with `<adaptiveapi id="PII_KIND_n"/>` placeholders so the
+/// upstream LLM sees a stable substitute (e.g. `[redacted-email]`) instead of the
+/// original value.
 ///
 /// The returned placeholder list uses the same `Placeholder(Id, Original)` shape as the
-/// tokenizer, with `Original` set to the REPLACEMENT string — not the source PII — so
+/// tokenizer, with `Original` set to the REPLACEMENT string (not the source PII), so
 /// post-translation reinjection yields a redacted but natural-reading sentence rather
 /// than restoring the sensitive value.
 ///
-/// Detection is regex-based (not ML); add a Presidio-powered detector alongside this for
-/// higher recall in the future. Patterns covered: email, phone (E.164 + common formats),
-/// US SSN, generic IBAN, credit cards (with Luhn check), IPv4.
+/// The default detector set covers email, phone (E.164 + common formats), US SSN,
+/// IBAN, credit cards (with Luhn check), and IPv4. Custom detector sets are supplied
+/// per-route by `DbRuleResolver` after composing premade packs and tenant-defined
+/// custom rules.
 public static class PiiRedactor
 {
     public sealed record Result(string Text, IReadOnlyList<Placeholder> Redactions);
 
     private const string TagPrefix = "adaptiveapi";
 
-    // Detector ORDER matters: broader numeric patterns (phone) must run AFTER
-    // narrow-and-validated ones (credit card, SSN, IBAN) so the Luhn-checked credit
-    // card isn't eaten by the phone matcher.
-    private static readonly (string Kind, string Replacement, Regex Regex)[] Detectors =
-    {
-        ("EMAIL", "[redacted-email]",
-            new Regex(@"\b[\w.!#$%&'*+/=?^`{|}~-]+@[\w-]+(?:\.[\w-]+)+\b",
-                RegexOptions.Compiled | RegexOptions.CultureInvariant)),
-        ("CREDIT_CARD", "[redacted-card]",
-            new Regex(@"\b(?:\d[ -]?){13,19}\b",
-                RegexOptions.Compiled | RegexOptions.CultureInvariant)),
-        ("SSN", "[redacted-ssn]",
-            new Regex(@"\b\d{3}-\d{2}-\d{4}\b",
-                RegexOptions.Compiled | RegexOptions.CultureInvariant)),
-        ("IBAN", "[redacted-iban]",
-            new Regex(@"\b[A-Z]{2}\d{2}[A-Z0-9]{10,30}\b",
-                RegexOptions.Compiled | RegexOptions.CultureInvariant)),
-        ("IPV4", "[redacted-ip]",
-            new Regex(@"\b(?:(?:25[0-5]|2[0-4]\d|[01]?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d?\d)\b",
-                RegexOptions.Compiled | RegexOptions.CultureInvariant)),
-        ("PHONE", "[redacted-phone]",
-            new Regex(@"\+?\d[\d\s().-]{8,}\d",
-                RegexOptions.Compiled | RegexOptions.CultureInvariant)),
-    };
+    /// Backwards-compatible entry point using the default detector set.
+    public static Result Redact(string input) => Redact(input, PiiDetectorSet.Default);
 
-    public static Result Redact(string input)
+    /// Redact using an explicit detector set. Detector ORDER matters: callers must
+    /// place narrow-and-validated patterns (cards, SSN, IBAN) before broader numeric
+    /// patterns (phone) so the validated match isn't eaten.
+    public static Result Redact(string input, PiiDetectorSet detectors)
     {
-        if (string.IsNullOrEmpty(input))
+        if (string.IsNullOrEmpty(input) || detectors.Detectors.Count == 0)
             return new Result(input, Array.Empty<Placeholder>());
 
         var redactions = new List<Placeholder>();
         var working = input;
 
-        foreach (var (kind, replacement, regex) in Detectors)
+        foreach (var detector in detectors.Detectors)
         {
-            working = regex.Replace(working, m =>
+            working = detector.Regex.Replace(working, m =>
             {
-                if (kind == "CREDIT_CARD" && !LuhnValid(m.Value)) return m.Value;
-                var id = $"PII_{kind}_{redactions.Count}";
-                redactions.Add(new Placeholder(id, replacement));
+                if (detector.LuhnValidate && !LuhnValid(m.Value)) return m.Value;
+                var id = $"PII_{detector.Kind}_{redactions.Count}";
+                redactions.Add(new Placeholder(id, detector.Replacement));
                 return $"<{TagPrefix} id=\"{id}\"/>";
             });
         }

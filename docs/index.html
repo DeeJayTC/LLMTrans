@@ -1,0 +1,458 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AdaptiveAPI. The same model, in every language.</title>
+<meta name="description" content="A drop-in multilingual proxy for LLMs, MCP servers, and any HTTP+JSON API. Change one URL. Keep your SDK." />
+<meta property="og:title" content="AdaptiveAPI" />
+<meta property="og:description" content="The same model, in every language. A drop-in multilingual proxy for LLMs, MCP servers, and any HTTP+JSON API." />
+<meta property="og:type" content="website" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/styles.css" />
+<link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
+</head>
+<body>
+
+<header class="nav">
+  <div class="nav-inner">
+    <a href="#" class="brand">
+      <span class="brand-mark" aria-hidden="true">◆</span>
+      <span class="brand-name">adaptive<em>api</em></span>
+    </a>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="#how">How it works</a>
+      <a href="#features">Features</a>
+      <a href="docs/index.html">Docs</a>
+      <a href="#faq">FAQ</a>
+    </nav>
+    <div class="nav-actions">
+      <button class="theme-toggle" type="button" aria-label="Toggle theme" data-theme-toggle>
+        <span class="theme-icon-light" aria-hidden="true">☀</span>
+        <span class="theme-icon-dark" aria-hidden="true">☾</span>
+      </button>
+      <a class="btn btn-ghost" href="https://github.com/DeeJayTC/adaptiveapi">GitHub</a>
+      <a class="btn btn-primary" href="docs/getting-started.html">Quick start <span aria-hidden="true">→</span></a>
+    </div>
+  </div>
+</header>
+
+<main>
+
+<section class="hero">
+  <div class="hero-grid">
+    <div class="hero-copy">
+      <span class="eyebrow">Multilingual proxy for LLMs and MCP servers</span>
+      <h1>The same model. <em>In every language.</em></h1>
+      <p class="lede">
+        Most popular LLMs are trained mostly on English. Ask the same question in
+        German or Japanese and the answer is measurably worse. Same model, same
+        money, worse outcome.
+      </p>
+      <p class="lede">
+        AdaptiveAPI sits between your app and the vendor, so the model keeps
+        thinking in English while your user keeps reading their language. JSON
+        shapes, tool calls, code blocks, and streaming deltas survive the round
+        trip.
+      </p>
+      <div class="hero-ctas">
+        <a class="btn btn-primary btn-lg" href="docs/getting-started.html">Read the docs <span aria-hidden="true">→</span></a>
+        <a class="btn btn-ghost btn-lg" href="https://github.com/DeeJayTC/adaptiveapi">Read the source <span aria-hidden="true">→</span></a>
+      </div>
+      <ul class="hero-bullets">
+        <li><span class="check" aria-hidden="true">✓</span> Drop-in for OpenAI, Anthropic, and MCP</li>
+        <li><span class="check" aria-hidden="true">✓</span> Streaming, tool calls, JSON shape preserved</li>
+        <li><span class="check" aria-hidden="true">✓</span> Self-host. SQLite by default, Postgres at scale</li>
+      </ul>
+    </div>
+
+    <aside class="hero-mock" aria-label="Request flow illustration">
+      <div class="mock-card">
+        <div class="mock-head">
+          <span class="dot dot-a"></span>
+          <span class="dot dot-b"></span>
+          <span class="dot dot-c"></span>
+          <span class="mock-title">request flow</span>
+        </div>
+        <div class="mock-body">
+          <div class="lane lane-out">
+            <span class="lane-tag">user (de)</span>
+            <code>"Was ist eine Hashmap?"</code>
+            <span class="arrow" aria-hidden="true">↓</span>
+            <span class="lane-tag lane-mid">adaptiveapi</span>
+            <code class="muted">→ translate → en</code>
+            <span class="arrow" aria-hidden="true">↓</span>
+            <span class="lane-tag">model (en)</span>
+            <code>"What is a hashmap?"</code>
+          </div>
+          <div class="lane lane-back">
+            <span class="lane-tag">model (en)</span>
+            <code>"A hashmap is a..."</code>
+            <span class="arrow" aria-hidden="true">↑</span>
+            <span class="lane-tag lane-mid">adaptiveapi</span>
+            <code class="muted">→ translate → de</code>
+            <span class="arrow" aria-hidden="true">↑</span>
+            <span class="lane-tag">user (de)</span>
+            <code>"Eine Hashmap ist eine..."</code>
+          </div>
+        </div>
+        <div class="mock-foot">
+          <span class="pill">streaming</span>
+          <span class="pill">tool calls</span>
+          <span class="pill">glossaries</span>
+          <span class="pill">PII redaction</span>
+        </div>
+      </div>
+    </aside>
+  </div>
+</section>
+
+<section class="problem">
+  <div class="container">
+    <h2 class="quote">
+      Your LLM is fluent in English<br />
+      and approximately fluent in everything else.
+    </h2>
+    <p class="problem-sub">
+      Translation pipelines exist. Most break tool calls, lose JSON shape, or
+      stutter on streams. AdaptiveAPI is built around the wire format, not on top
+      of it. Your SDK keeps working. Your streaming UI keeps animating. Your
+      function arguments arrive shape-safe.
+    </p>
+  </div>
+</section>
+
+<section id="how" class="how">
+  <div class="container">
+    <header class="section-head">
+      <span class="eyebrow">How it works</span>
+      <h2>Three moving parts. One URL change.</h2>
+    </header>
+
+    <div class="steps">
+      <article class="step">
+        <span class="step-num">01</span>
+        <h3>Point your SDK at AdaptiveAPI</h3>
+        <p>
+          Change the base URL. Keep your keys, keep your retries, keep your
+          streaming code. The OpenAI client points at <code>/v1/&lt;route&gt;/</code>,
+          the Anthropic client at <code>/anthropic/v1/&lt;route&gt;/</code>, MCP
+          clients at <code>/mcp/&lt;route&gt;</code>.
+        </p>
+      </article>
+      <article class="step">
+        <span class="step-num">02</span>
+        <h3>AdaptiveAPI translates both directions</h3>
+        <p>
+          Inbound text becomes the model's working language. The model answers.
+          Outbound text becomes the user's language. IDs, URLs, code blocks, and
+          tool argument keys are kept verbatim. Sentence-boundary streaming keeps
+          first-token latency low.
+        </p>
+      </article>
+      <article class="step">
+        <span class="step-num">03</span>
+        <h3>Per route, you decide the policy</h3>
+        <p>
+          Bind a glossary, a DeepL v3 style rule, an allowlist, and a PII
+          redactor to each route token. Override per request with
+          <code>X-AdaptiveApi-*</code> headers. Audit every call without storing
+          bodies.
+        </p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section id="examples" class="examples">
+  <div class="container">
+    <header class="section-head">
+      <span class="eyebrow">Code</span>
+      <h2>Same SDK. Same keys. New base URL.</h2>
+    </header>
+
+    <div class="tabs" data-tabs>
+      <div class="tablist" role="tablist">
+        <button role="tab" class="tab is-active" data-tab="openai">OpenAI</button>
+        <button role="tab" class="tab" data-tab="anthropic">Anthropic</button>
+        <button role="tab" class="tab" data-tab="mcp">MCP client</button>
+        <button role="tab" class="tab" data-tab="generic">Generic JSON</button>
+      </div>
+
+      <div class="tabpanels">
+        <pre class="tabpanel is-active" data-panel="openai"><code><span class="t-key">from</span> openai <span class="t-key">import</span> OpenAI
+
+client = OpenAI(
+    api_key=<span class="t-str">"sk-..."</span>,
+    base_url=<span class="t-str">"https://adaptiveapi.example.com/v1/rt_yourtenant_xxxxx"</span>,
+)
+
+resp = client.chat.completions.create(
+    model=<span class="t-str">"gpt-4o-mini"</span>,
+    messages=[{<span class="t-str">"role"</span>: <span class="t-str">"user"</span>,
+               <span class="t-str">"content"</span>: <span class="t-str">"Was ist der Unterschied zwischen Array und Liste?"</span>}],
+    extra_headers={<span class="t-str">"X-AdaptiveApi-Target-Lang"</span>: <span class="t-str">"de"</span>},
+)
+<span class="t-com"># reply arrives in German. The upstream model saw English.</span>
+</code></pre>
+
+        <pre class="tabpanel" data-panel="anthropic"><code><span class="t-key">import</span> anthropic
+
+client = anthropic.Anthropic(
+    api_key=<span class="t-str">"sk-ant-..."</span>,
+    base_url=<span class="t-str">"https://adaptiveapi.example.com/anthropic/v1/rt_yourtenant_xxxxx"</span>,
+)
+
+message = client.messages.create(
+    model=<span class="t-str">"claude-3-7-sonnet-latest"</span>,
+    max_tokens=<span class="t-num">1024</span>,
+    system=<span class="t-str">"Tu es un assistant serviable."</span>,
+    messages=[{<span class="t-str">"role"</span>: <span class="t-str">"user"</span>,
+               <span class="t-str">"content"</span>: <span class="t-str">"Explique-moi le théorème de Pythagore."</span>}],
+    extra_headers={<span class="t-str">"X-AdaptiveApi-Target-Lang"</span>: <span class="t-str">"fr"</span>},
+)
+</code></pre>
+
+        <pre class="tabpanel" data-panel="mcp"><code>{
+  <span class="t-str">"mcpServers"</span>: {
+    <span class="t-str">"linear-de"</span>: {
+      <span class="t-str">"url"</span>: <span class="t-str">"https://adaptiveapi.example.com/mcp/rt_yourtenant_xxxxx"</span>,
+      <span class="t-str">"headers"</span>: {
+        <span class="t-str">"Authorization"</span>: <span class="t-str">"Bearer &lt;your-linear-oauth-token&gt;"</span>
+      }
+    }
+  }
+}
+<span class="t-com">// Tool descriptions, arguments, and results all arrive translated.</span>
+<span class="t-com">// Your OAuth token rides upstream byte-identical. Never stored. Never logged.</span>
+</code></pre>
+
+        <pre class="tabpanel" data-panel="generic"><code>{
+  <span class="t-str">"upstream"</span>: {
+    <span class="t-str">"urlTemplate"</span>: <span class="t-str">"https://api.cohere.com/v1/chat"</span>,
+    <span class="t-str">"method"</span>: <span class="t-str">"POST"</span>
+  },
+  <span class="t-str">"request"</span>: {
+    <span class="t-str">"translateJsonPaths"</span>: [
+      <span class="t-str">"$.message"</span>,
+      <span class="t-str">"$.chat_history[*].message"</span>,
+      <span class="t-str">"$.tools[*].description"</span>
+    ]
+  },
+  <span class="t-str">"response"</span>: {
+    <span class="t-str">"streaming"</span>: <span class="t-str">"sse"</span>,
+    <span class="t-str">"eventPath"</span>: <span class="t-str">"$.text"</span>,
+    <span class="t-str">"finalPaths"</span>: [<span class="t-str">"$.text"</span>, <span class="t-str">"$.generations[*].text"</span>]
+  },
+  <span class="t-str">"direction"</span>: <span class="t-str">"bidirectional"</span>
+}
+</code></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="features" class="features">
+  <div class="container">
+    <header class="section-head">
+      <span class="eyebrow">What you get</span>
+      <h2>Translation that respects the wire format.</h2>
+    </header>
+
+    <div class="feature-grid">
+      <article class="feature">
+        <span class="feature-icon" aria-hidden="true">⌁</span>
+        <h3>Streaming that actually streams</h3>
+        <p>
+          Buffer per <code>delta.content</code>, flush at sentence boundaries,
+          re-emit synthetic SSE deltas. Pick the default sentence-boundary mode or
+          a progressive mode for lower first-token latency.
+        </p>
+      </article>
+      <article class="feature">
+        <span class="feature-icon" aria-hidden="true">⌬</span>
+        <h3>Tool calls survive the trip</h3>
+        <p>
+          Function <code>arguments</code> is JSON inside JSON. AdaptiveAPI parses
+          it, walks it with a key-aware denylist, translates the leaves that are
+          actually human text, and re-serialises. IDs, slugs, and URLs stay byte
+          identical.
+        </p>
+      </article>
+      <article class="feature">
+        <span class="feature-icon" aria-hidden="true">✦</span>
+        <h3>Glossaries and style rules</h3>
+        <p>
+          Tenant-scoped glossaries map 1:1 to DeepL v3. Style rules carry up to
+          ten 300-character custom instructions. Bind to a route, override per
+          request.
+        </p>
+      </article>
+      <article class="feature">
+        <span class="feature-icon" aria-hidden="true">◐</span>
+        <h3>PII redaction, opt in</h3>
+        <p>
+          Regex detectors for email, IBAN, Luhn-validated cards, US SSN, IPv4,
+          and phone. Plug in Microsoft Presidio for higher recall. The upstream
+          model never sees the original spans, so it cannot emit them.
+        </p>
+      </article>
+      <article class="feature">
+        <span class="feature-icon" aria-hidden="true">◇</span>
+        <h3>Routes, tokens, audit</h3>
+        <p>
+          Argon2id-hashed route tokens, never logged. Audit metadata covers
+          status, language pair, char counts, and integrity failures. Bodies are
+          off by default.
+        </p>
+      </article>
+      <article class="feature">
+        <span class="feature-icon" aria-hidden="true">⊹</span>
+        <h3>One proxy, many surfaces</h3>
+        <p>
+          OpenAI Chat and Responses APIs, Anthropic Messages, remote and stdio
+          MCP servers, plus a declarative adapter for any HTTP+JSON API.
+        </p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section id="quickstart" class="quickstart">
+  <div class="container">
+    <header class="section-head">
+      <span class="eyebrow">Quick start</span>
+      <h2>Up in one command.</h2>
+    </header>
+
+    <div class="quick-grid">
+      <pre class="quick-code"><code><span class="t-com"># clone, configure, run</span>
+git clone https://github.com/DeeJayTC/adaptiveapi.git
+<span class="t-key">cd</span> adaptiveapi/deploy
+cp .env.example .env
+docker compose up --build
+
+<span class="t-com"># add the chat demo</span>
+docker compose --profile demo up --build</code></pre>
+
+      <ul class="quick-list">
+        <li><span class="bullet" aria-hidden="true">↳</span> <strong>API</strong> on <code>:8080</code>, health at <code>/healthz</code></li>
+        <li><span class="bullet" aria-hidden="true">↳</span> <strong>Admin UI</strong> on <code>:8000</code></li>
+        <li><span class="bullet" aria-hidden="true">↳</span> <strong>Chat demo</strong> on <code>:8100</code> (with the demo profile)</li>
+        <li><span class="bullet" aria-hidden="true">↳</span> SQLite volume by default. Postgres + Redis blocks pre-wired in the compose file.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="deploy" class="deploy">
+  <div class="container">
+    <header class="section-head">
+      <span class="eyebrow">Deploy</span>
+      <h2>Self-host it the way you already self-host things.</h2>
+    </header>
+
+    <div class="deploy-grid">
+      <article class="deploy-card">
+        <h3>Docker compose</h3>
+        <p>One file. API, admin UI, and a SQLite volume. Postgres, Redis, and OTLP collector blocks pre-wired and commented out.</p>
+        <ul>
+          <li><span class="check" aria-hidden="true">✓</span> SSE-friendly defaults</li>
+          <li><span class="check" aria-hidden="true">✓</span> Optional chat demo profile</li>
+          <li><span class="check" aria-hidden="true">✓</span> One <code>.env</code> covers everything</li>
+        </ul>
+      </article>
+      <article class="deploy-card">
+        <h3>Helm chart</h3>
+        <p>Two Deployments, an Ingress with SSE annotations, an HPA on CPU (2 to 10 replicas), a PDB with <code>minAvailable: 1</code>, and a PVC for SQLite when no external database is configured.</p>
+        <ul>
+          <li><span class="check" aria-hidden="true">✓</span> Production defaults</li>
+          <li><span class="check" aria-hidden="true">✓</span> Existing-secret references</li>
+          <li><span class="check" aria-hidden="true">✓</span> Values reference in the repo</li>
+        </ul>
+      </article>
+      <article class="deploy-card">
+        <h3>From source</h3>
+        <p>.NET 10 API and a Vue 3 admin UI. <code>dotnet run</code> on one side, <code>npm run dev</code> on the other. Nothing exotic.</p>
+        <ul>
+          <li><span class="check" aria-hidden="true">✓</span> .NET 10 minimal API</li>
+          <li><span class="check" aria-hidden="true">✓</span> Vue 3 + Vite</li>
+          <li><span class="check" aria-hidden="true">✓</span> Plugin loader for org, SCIM, billing</li>
+        </ul>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section id="faq" class="faq">
+  <div class="container">
+    <header class="section-head">
+      <span class="eyebrow">FAQ</span>
+      <h2>The questions you would have asked.</h2>
+    </header>
+
+    <div class="faq-list">
+      <details>
+        <summary>Do you store my OpenAI, Anthropic, or MCP token?</summary>
+        <p>No. Upstream credentials ride in request headers, are forwarded byte identical, and are never persisted or logged. Only a SHA-256 fingerprint of the <code>Authorization</code> header goes into the audit log for abuse correlation. Never the value itself.</p>
+      </details>
+      <details>
+        <summary>What happens if a translation loses a placeholder?</summary>
+        <p>Each round trip has a hard invariant. Every <code>&lt;adaptiveapi id="TAG_n"/&gt;</code> tag emitted into the source must reappear exactly once in the translator output. If it does not, the pipeline falls back to the source text and increments <code>adaptiveapi_placeholder_integrity_failures_total</code>. Alerts should fire above 0.5%.</p>
+      </details>
+      <details>
+        <summary>Does streaming actually stream?</summary>
+        <p>Yes. The pipeline buffers per <code>choices[i].delta.content</code>, flushes at sentence boundaries once the buffer reaches 80 chars (configurable), translates the completed segment through the full placeholder round trip, then re-emits a synthetic SSE delta. Clients see token-by-token UI with a modest per-sentence latency cost.</p>
+      </details>
+      <details>
+        <summary>What about tool calls?</summary>
+        <p>OpenAI's <code>tool_calls[*].function.arguments</code> is a JSON string containing JSON. The pipeline parses the inner JSON, walks it with a key-aware denylist (<code>id</code>, <code>uuid</code>, <code>email</code>, <code>slug</code>, <code>url</code>, plus <code>*_id</code> and <code>*_code</code> patterns), translates the string leaves that are not identifiers, and re-serialises. Extend the denylist per tenant via proxy rules.</p>
+      </details>
+      <details>
+        <summary>Can I run AdaptiveAPI without any translator?</summary>
+        <p>Yes. The default <code>passthrough</code> translator leaves text unchanged, which makes the proxy a route-token-gated forwarder. Useful while getting routes set up, or for letting some routes through untranslated with <code>X-AdaptiveApi-Mode: off</code>.</p>
+      </details>
+      <details>
+        <summary>What is the license?</summary>
+        <p>GNU Affero General Public License v3.0. If you run a modified version as a network service, the AGPL requires you to make the corresponding source available to the users of that service. Unmodified deployments are not affected.</p>
+      </details>
+    </div>
+  </div>
+</section>
+
+<section class="cta">
+  <div class="container cta-inner">
+    <h2>Self-host it. Fork it. Read the source.</h2>
+    <p>One repo. AGPL. Everything described above is running today.</p>
+    <div class="cta-actions">
+      <a class="btn btn-primary btn-lg" href="https://github.com/DeeJayTC/adaptiveapi">View on GitHub <span aria-hidden="true">→</span></a>
+      <a class="btn btn-ghost btn-lg" href="docs/index.html">Read the docs <span aria-hidden="true">→</span></a>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer class="footer">
+  <div class="container footer-inner">
+    <div class="footer-brand">
+      <span class="brand-mark" aria-hidden="true">◆</span>
+      <span class="brand-name">adaptive<em>api</em></span>
+    </div>
+    <p class="footer-meta">
+      Built on .NET 10, Vue 3, and the official DeepL .NET SDK.<br />
+      Copyright © 2026 Tim Cadenbach. AGPL v3.
+    </p>
+    <div class="footer-links">
+      <a href="https://github.com/DeeJayTC/adaptiveapi">GitHub</a>
+      <a href="https://github.com/DeeJayTC/adaptiveapi/blob/main/LICENSE">License</a>
+      <a href="docs/index.html">Docs</a>
+    </div>
+  </div>
+</footer>
+
+<script src="assets/script.js" defer></script>
+</body>
+</html>

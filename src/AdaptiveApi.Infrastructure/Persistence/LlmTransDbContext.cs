@@ -14,6 +14,8 @@ public sealed class AdaptiveApiDbContext : DbContext
     public DbSet<StyleRuleEntity> StyleRules => Set<StyleRuleEntity>();
     public DbSet<CustomInstructionEntity> CustomInstructions => Set<CustomInstructionEntity>();
     public DbSet<ProxyRuleEntity> ProxyRules => Set<ProxyRuleEntity>();
+    public DbSet<PiiPackEntity> PiiPacks => Set<PiiPackEntity>();
+    public DbSet<PiiRuleEntity> PiiRules => Set<PiiRuleEntity>();
     public DbSet<McpServerEntity> McpServers => Set<McpServerEntity>();
     public DbSet<McpCatalogEntity> McpCatalog => Set<McpCatalogEntity>();
     public DbSet<AuditEventEntity> AuditEvents => Set<AuditEventEntity>();
@@ -116,6 +118,30 @@ public sealed class AdaptiveApiDbContext : DbContext
             e.Property(x => x.Id).HasMaxLength(64);
             e.Property(x => x.TenantId).HasMaxLength(64).IsRequired();
             e.Property(x => x.Name).HasMaxLength(256).IsRequired();
+            e.HasIndex(x => x.TenantId);
+        });
+
+        b.Entity<PiiPackEntity>(e =>
+        {
+            e.ToTable("pii_packs");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).HasMaxLength(64);
+            e.Property(x => x.Slug).HasMaxLength(64).IsRequired();
+            e.Property(x => x.Name).HasMaxLength(256).IsRequired();
+            e.Property(x => x.Description).HasMaxLength(1024).IsRequired();
+            e.HasIndex(x => x.Slug).IsUnique();
+        });
+
+        b.Entity<PiiRuleEntity>(e =>
+        {
+            e.ToTable("pii_rules");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).HasMaxLength(64);
+            e.Property(x => x.TenantId).HasMaxLength(64).IsRequired();
+            e.Property(x => x.Name).HasMaxLength(128).IsRequired();
+            e.Property(x => x.Description).HasMaxLength(1024);
+            e.Property(x => x.Pattern).HasMaxLength(2048).IsRequired();
+            e.Property(x => x.Replacement).HasMaxLength(256).IsRequired();
             e.HasIndex(x => x.TenantId);
         });
 

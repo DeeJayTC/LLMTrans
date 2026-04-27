@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Routes and tokens. AdaptiveAPI documentation.</title>
+<meta name="description" content="How AdaptiveAPI routes are shaped, how tokens are issued, and the request-time headers you can use." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../assets/styles.css" />
+<link rel="stylesheet" href="../assets/docs.css" />
+<link rel="icon" type="image/svg+xml" href="../assets/favicon.svg" />
+</head>
+<body>
+
+<header class="nav">
+  <div class="nav-inner">
+    <a href="../index.html" class="brand">
+      <span class="brand-mark" aria-hidden="true">◆</span>
+      <span class="brand-name">adaptive<em>api</em></span>
+    </a>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="../index.html#how">How it works</a>
+      <a href="../index.html#features">Features</a>
+      <a href="index.html">Docs</a>
+      <a href="../index.html#faq">FAQ</a>
+    </nav>
+    <div class="nav-actions">
+      <button class="theme-toggle" type="button" aria-label="Toggle theme" data-theme-toggle>
+        <span class="theme-icon-light" aria-hidden="true">☀</span>
+        <span class="theme-icon-dark" aria-hidden="true">☾</span>
+      </button>
+      <a class="btn btn-ghost" href="https://github.com/DeeJayTC/adaptiveapi">GitHub</a>
+      <a class="btn btn-primary" href="llm-providers.html">Next <span aria-hidden="true">→</span></a>
+    </div>
+  </div>
+</header>
+
+<div class="docs-shell">
+
+  <aside class="docs-side" aria-label="Documentation navigation">
+    <h4>Start here</h4>
+    <ul>
+      <li><a href="index.html">Overview</a></li>
+      <li><a href="getting-started.html">Getting started</a></li>
+      <li><a href="authentication.html">Authentication</a></li>
+      <li><a href="routes.html" class="is-active">Routes and tokens</a></li>
+    </ul>
+    <h4>Integrate</h4>
+    <ul>
+      <li><a href="llm-providers.html">LLM providers</a></li>
+      <li><a href="mcp.html">MCP servers</a></li>
+      <li><a href="generic-json.html">Generic JSON API</a></li>
+    </ul>
+    <h4>Features</h4>
+    <ul>
+      <li><a href="style-rules.html">Style rules &amp; customization</a></li>
+      <li><a href="pii.html">PII detection</a></li>
+      <li><a href="translation.html">Translation pipeline</a></li>
+    </ul>
+    <h4>Operate</h4>
+    <ul>
+      <li><a href="deployment.html">Deployment</a></li>
+      <li><a href="configuration.html">Configuration</a></li>
+    </ul>
+  </aside>
+
+  <main class="docs-main">
+    <span class="docs-eyebrow">Concepts</span>
+    <h1>Routes and <em>tokens</em></h1>
+    <p class="docs-lede">
+      A route is the unit of policy in AdaptiveAPI. It binds an upstream service,
+      a default language pair, a translator backend, and a set of policies (glossary,
+      style rule, PII redaction, allowlists) behind a single token.
+    </p>
+
+    <h2>Anatomy of a route</h2>
+    <p>Every route has the same five-part shape:</p>
+    <ul>
+      <li><strong>Kind</strong>. <code>openai</code>, <code>anthropic</code>, <code>mcp</code>, or <code>generic</code>.</li>
+      <li><strong>Upstream</strong>. The base URL of the service you proxy.</li>
+      <li><strong>Languages</strong>. A target language (what the user speaks) and a source language (what the model thinks in).</li>
+      <li><strong>Translator</strong>. <code>passthrough</code>, <code>deepl</code>, or <code>llm</code>.</li>
+      <li><strong>Policies</strong>. Optional glossary, style rule, PII redactor, allowlist, denylist.</li>
+    </ul>
+
+    <p>
+      The token returned by the admin UI is what callers use as the path segment
+      after the route prefix. For an OpenAI route, the URL looks like
+      <code>/v1/rt_yourtenant_xxxxx/chat/completions</code>.
+    </p>
+
+    <h2>How tokens are stored</h2>
+    <p>
+      Tokens are hashed with Argon2id before they hit the database. The plain
+      value is shown to you exactly once at creation time. After that, the admin
+      UI only displays the prefix (<code>rt_yourtenant_</code>) and a fingerprint.
+      Lose it, rotate it.
+    </p>
+    <p>
+      Tokens carry no permission grants of their own. They identify the route. If
+      you need scoped admin access, that lives on the OIDC layer in front of the
+      admin surface, not on route tokens.
+    </p>
+
+    <h2>Request-time controls</h2>
+    <p>
+      Every header below overrides the route default for one request. All
+      <code>X-AdaptiveApi-*</code> headers are stripped before reaching the upstream,
+      so they never leak into your model context.
+    </p>
+
+    <table>
+      <thead>
+        <tr><th>Header</th><th>Example</th><th>Purpose</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>X-AdaptiveApi-Target-Lang</code></td><td><code>de</code></td><td>User language (what the caller speaks).</td></tr>
+        <tr><td><code>X-AdaptiveApi-Source-Lang</code></td><td><code>en</code></td><td>Upstream working language.</td></tr>
+        <tr><td><code>X-AdaptiveApi-Mode</code></td><td><code>bidirectional</code></td><td>Direction toggle. Also <code>request-only</code>, <code>response-only</code>, <code>off</code>.</td></tr>
+        <tr><td><code>X-AdaptiveApi-Translator</code></td><td><code>deepl</code></td><td>Force a translator for this call.</td></tr>
+        <tr><td><code>X-AdaptiveApi-Glossary</code></td><td><code>g_default</code></td><td>Apply a specific glossary.</td></tr>
+        <tr><td><code>X-AdaptiveApi-Style-Rule</code></td><td><code>s_marketing</code></td><td>Apply a DeepL v3 style rule.</td></tr>
+        <tr><td><code>X-AdaptiveApi-Model-Type</code></td><td><code>quality_optimized</code></td><td>DeepL model selector.</td></tr>
+      </tbody>
+    </table>
+
+    <h2>Glossaries and style rules</h2>
+    <p>
+      Glossaries are tenant-scoped. Each entry is either a do-not-translate term
+      (kept verbatim) or a source-to-target term map. They map 1:1 to DeepL v3
+      multilingual glossaries on the wire.
+    </p>
+    <p>
+      Style rules are DeepL v3 style rules with up to ten 300-character
+      natural-language custom instructions per rule (for example, "always use
+      formal address" or "translate technical terms loosely"). Bind one to a
+      route, override per request with <code>X-AdaptiveApi-Style-Rule</code>.
+    </p>
+
+    <h2>Allowlists and denylists</h2>
+    <p>
+      Proxy rules constrain which upstream paths a route may hit and which JSON
+      keys are translated. The visual editor under <strong>Proxy rules</strong> in
+      the admin UI is the easiest path. The underlying shape is:
+    </p>
+<pre><code>{
+  <span class="t-str">"allowedPaths"</span>: [<span class="t-str">"/v1/chat/completions"</span>, <span class="t-str">"/v1/responses"</span>],
+  <span class="t-str">"deniedJsonKeys"</span>: [<span class="t-str">"internal_note"</span>],
+  <span class="t-str">"toolArgKeys"</span>: [<span class="t-str">"customer_id"</span>],
+  <span class="t-str">"redactPii"</span>: <span class="t-key">true</span>
+}</code></pre>
+
+    <h2>Auditing</h2>
+    <p>
+      Every request emits an audit row with status, language pair, character
+      counts, duration, integrity-failure flags, and a SHA-256 fingerprint of the
+      <code>Authorization</code> header (never the value). Bodies are off by
+      default. Turn them on per route for debugging, then turn them off again.
+    </p>
+
+    <div class="docs-pager">
+      <a class="pager-prev" href="authentication.html">
+        <span class="pager-label">Previous</span>
+        <span class="pager-title">Authentication</span>
+      </a>
+      <a class="pager-next" href="llm-providers.html">
+        <span class="pager-label">Next</span>
+        <span class="pager-title">LLM providers <span aria-hidden="true">→</span></span>
+      </a>
+    </div>
+  </main>
+
+</div>
+
+<footer class="footer">
+  <div class="container footer-inner">
+    <div class="footer-brand">
+      <span class="brand-mark" aria-hidden="true">◆</span>
+      <span class="brand-name">adaptive<em>api</em></span>
+    </div>
+    <p class="footer-meta">
+      Built on .NET 10, Vue 3, and the official DeepL .NET SDK.<br />
+      Copyright © 2026 Tim Cadenbach. AGPL v3.
+    </p>
+    <div class="footer-links">
+      <a href="https://github.com/DeeJayTC/adaptiveapi">GitHub</a>
+      <a href="https://github.com/DeeJayTC/adaptiveapi/blob/main/LICENSE">License</a>
+      <a href="index.html">Docs</a>
+    </div>
+  </div>
+</footer>
+
+<script src="../assets/script.js" defer></script>
+</body>
+</html>

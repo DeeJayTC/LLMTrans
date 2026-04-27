@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Getting started. AdaptiveAPI documentation.</title>
+<meta name="description" content="Run AdaptiveAPI locally with Docker, create a route, and send your first translated request." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../assets/styles.css" />
+<link rel="stylesheet" href="../assets/docs.css" />
+<link rel="icon" type="image/svg+xml" href="../assets/favicon.svg" />
+</head>
+<body>
+
+<header class="nav">
+  <div class="nav-inner">
+    <a href="../index.html" class="brand">
+      <span class="brand-mark" aria-hidden="true">◆</span>
+      <span class="brand-name">adaptive<em>api</em></span>
+    </a>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="../index.html#how">How it works</a>
+      <a href="../index.html#features">Features</a>
+      <a href="index.html">Docs</a>
+      <a href="../index.html#faq">FAQ</a>
+    </nav>
+    <div class="nav-actions">
+      <button class="theme-toggle" type="button" aria-label="Toggle theme" data-theme-toggle>
+        <span class="theme-icon-light" aria-hidden="true">☀</span>
+        <span class="theme-icon-dark" aria-hidden="true">☾</span>
+      </button>
+      <a class="btn btn-ghost" href="https://github.com/DeeJayTC/adaptiveapi">GitHub</a>
+      <a class="btn btn-primary" href="authentication.html">Next <span aria-hidden="true">→</span></a>
+    </div>
+  </div>
+</header>
+
+<div class="docs-shell">
+
+  <aside class="docs-side" aria-label="Documentation navigation">
+    <h4>Start here</h4>
+    <ul>
+      <li><a href="index.html">Overview</a></li>
+      <li><a href="getting-started.html" class="is-active">Getting started</a></li>
+      <li><a href="authentication.html">Authentication</a></li>
+      <li><a href="routes.html">Routes and tokens</a></li>
+    </ul>
+    <h4>Integrate</h4>
+    <ul>
+      <li><a href="llm-providers.html">LLM providers</a></li>
+      <li><a href="mcp.html">MCP servers</a></li>
+      <li><a href="generic-json.html">Generic JSON API</a></li>
+    </ul>
+    <h4>Features</h4>
+    <ul>
+      <li><a href="style-rules.html">Style rules &amp; customization</a></li>
+      <li><a href="pii.html">PII detection</a></li>
+      <li><a href="translation.html">Translation pipeline</a></li>
+    </ul>
+    <h4>Operate</h4>
+    <ul>
+      <li><a href="deployment.html">Deployment</a></li>
+      <li><a href="configuration.html">Configuration</a></li>
+    </ul>
+  </aside>
+
+  <main class="docs-main">
+    <span class="docs-eyebrow">Start here</span>
+    <h1>Getting <em>started</em></h1>
+    <p class="docs-lede">
+      Five minutes from clone to a translated response. The default setup runs
+      against SQLite and the <code>passthrough</code> translator, so you can
+      verify routing before wiring up DeepL or an LLM translator.
+    </p>
+
+    <h2>Run the stack</h2>
+    <p>
+      The API, the admin UI, and a SQLite volume come up with one command. The
+      compose file lives under <code>deploy/</code> in the repo.
+    </p>
+
+<pre><code><span class="t-com"># clone</span>
+git clone https://github.com/DeeJayTC/adaptiveapi.git
+<span class="t-key">cd</span> adaptiveapi/deploy
+
+<span class="t-com"># configure</span>
+cp .env.example .env
+
+<span class="t-com"># run</span>
+docker compose up --build</code></pre>
+
+    <p>You should now have:</p>
+    <ul>
+      <li><strong>API</strong> on <code>http://localhost:8080</code>, health at <code>/healthz</code>.</li>
+      <li><strong>Admin UI</strong> on <code>http://localhost:8000</code>.</li>
+      <li>A SQLite volume mounted at <code>/data</code> inside the API container.</li>
+    </ul>
+
+    <p>
+      To also bring up the bundled chat demo (a tiny .NET backend plus a Vue chat
+      UI you can point an OpenAI key at), add the demo profile.
+    </p>
+
+<pre><code>docker compose --profile demo up --build</code></pre>
+
+    <p>The demo UI lands on <code>http://localhost:8100</code>.</p>
+
+    <h2>Create your first route</h2>
+    <p>
+      A <em>route</em> is a token-gated entry point that maps an inbound request
+      to an upstream service plus a translation policy. Open the admin UI at
+      <code>http://localhost:8000</code>, click <strong>Routes</strong>, and
+      create one of:
+    </p>
+    <ul>
+      <li><strong>OpenAI</strong>. Speaks <code>chat/completions</code> and the Responses API.</li>
+      <li><strong>Anthropic</strong>. Speaks <code>messages</code>.</li>
+      <li><strong>MCP</strong>. Proxies a remote MCP server.</li>
+      <li><strong>Generic</strong>. Declarative adapter for any HTTP+JSON API. See <a href="generic-json.html">Generic JSON API</a>.</li>
+    </ul>
+
+    <p>
+      You will get back a route token like <code>rt_yourtenant_xxxxx</code>. The
+      token is the only secret you need on the client side. It is hashed with
+      Argon2id before storage and never logged.
+    </p>
+
+    <blockquote>
+      <p>
+        Want a stable token for local development? Set
+        <code>Dev__FixedRouteToken=rt_dev_LOCALDEMO</code> in
+        <code>deploy/.env</code> and the API will seed that token on first boot.
+      </p>
+    </blockquote>
+
+    <h2>Send your first request</h2>
+
+    <p>With the OpenAI Python SDK and the route token from above:</p>
+
+<pre><code><span class="t-key">from</span> openai <span class="t-key">import</span> OpenAI
+
+client = OpenAI(
+    api_key=<span class="t-str">"sk-..."</span>,                     <span class="t-com"># your real OpenAI key</span>
+    base_url=<span class="t-str">"http://localhost:8080/v1/rt_dev_LOCALDEMO"</span>,
+)
+
+resp = client.chat.completions.create(
+    model=<span class="t-str">"gpt-4o-mini"</span>,
+    messages=[{<span class="t-str">"role"</span>: <span class="t-str">"user"</span>,
+               <span class="t-str">"content"</span>: <span class="t-str">"Was ist eine Hashmap?"</span>}],
+    extra_headers={<span class="t-str">"X-AdaptiveApi-Target-Lang"</span>: <span class="t-str">"de"</span>},
+)
+<span class="t-key">print</span>(resp.choices[<span class="t-num">0</span>].message.content)</code></pre>
+
+    <p>
+      With the default <code>passthrough</code> translator, you will get the
+      English answer back unchanged. That confirms routing, auth, and streaming
+      all work. Wire up a real translator next.
+    </p>
+
+    <h2>Wire up a translator</h2>
+    <p>
+      Edit <code>deploy/.env</code>. To use DeepL:
+    </p>
+
+<pre><code>LLMTRANS_DEFAULT_TRANSLATOR=deepl
+DEEPL_API_KEY=<span class="t-str">"your-deepl-key"</span>
+DEEPL_BASE_URL=https://api.deepl.com/         <span class="t-com"># or https://api-free.deepl.com/</span></code></pre>
+
+    <p>To use an LLM as the translator instead:</p>
+
+<pre><code>LLMTRANS_DEFAULT_TRANSLATOR=llm
+LLM_TRANSLATOR_API_KEY=<span class="t-str">"sk-..."</span>
+LLM_TRANSLATOR_BASE_URL=https://api.openai.com/
+LLM_TRANSLATOR_MODEL=gpt-4o-mini</code></pre>
+
+    <p>
+      Restart the API container. The same request now arrives in German.
+    </p>
+
+    <h2>Where to next</h2>
+    <ul>
+      <li><a href="routes.html">Routes and tokens</a> covers per-route policy and the request-time headers.</li>
+      <li><a href="llm-providers.html">LLM providers</a>, <a href="mcp.html">MCP servers</a>, and <a href="generic-json.html">Generic JSON API</a> cover each integration shape.</li>
+      <li><a href="translation.html">Translation pipeline</a> explains streaming, tool calls, glossaries, and PII redaction.</li>
+    </ul>
+
+    <div class="docs-pager">
+      <a class="pager-prev" href="index.html">
+        <span class="pager-label">Previous</span>
+        <span class="pager-title">Overview</span>
+      </a>
+      <a class="pager-next" href="authentication.html">
+        <span class="pager-label">Next</span>
+        <span class="pager-title">Authentication <span aria-hidden="true">→</span></span>
+      </a>
+    </div>
+  </main>
+
+</div>
+
+<footer class="footer">
+  <div class="container footer-inner">
+    <div class="footer-brand">
+      <span class="brand-mark" aria-hidden="true">◆</span>
+      <span class="brand-name">adaptive<em>api</em></span>
+    </div>
+    <p class="footer-meta">
+      Built on .NET 10, Vue 3, and the official DeepL .NET SDK.<br />
+      Copyright © 2026 Tim Cadenbach. AGPL v3.
+    </p>
+    <div class="footer-links">
+      <a href="https://github.com/DeeJayTC/adaptiveapi">GitHub</a>
+      <a href="https://github.com/DeeJayTC/adaptiveapi/blob/main/LICENSE">License</a>
+      <a href="index.html">Docs</a>
+    </div>
+  </div>
+</footer>
+
+<script src="../assets/script.js" defer></script>
+</body>
+</html>

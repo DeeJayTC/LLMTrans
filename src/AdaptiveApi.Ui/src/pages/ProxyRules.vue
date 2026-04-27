@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
+import { RouterLink } from 'vue-router';
 import { api } from '../api';
-import type { ProxyRule } from '../types';
+import type { PiiPack, PiiRule, ProxyRule } from '../types';
 
 const rules = ref<ProxyRule[]>([]);
+const piiPacks = ref<PiiPack[]>([]);
+const piiRulesAvailable = ref<PiiRule[]>([]);
 const loading = ref(false);
 const saving = ref(false);
 const error = ref<string | null>(null);
@@ -21,6 +24,9 @@ interface EditorState {
   requestPaths: string[];
   responsePaths: string[];
   extraToolArgKeys: string[];
+  piiPackSlugs: string[];
+  piiRuleIds: string[];
+  piiDisabledDetectors: string[];
 }
 
 const form = ref<EditorState>(blank());
@@ -36,6 +42,9 @@ function blank(): EditorState {
     requestPaths: [],
     responsePaths: [],
     extraToolArgKeys: [],
+    piiPackSlugs: [],
+    piiRuleIds: [],
+    piiDisabledDetectors: [],
   };
 }
 
@@ -59,14 +68,46 @@ function loadInto(rule: ProxyRule) {
     tenantId: rule.tenantId,
     name: rule.name,
     priority: rule.priority,
-    redactPii: (rule as ProxyRule & { redactPii?: boolean }).redactPii ?? false,
+    redactPii: rule.redactPii ?? false,
     formality: (rule.formality ?? '') as EditorState['formality'],
     requestPaths: req,
     responsePaths: resp,
     extraToolArgKeys: extraKeys,
+    piiPackSlugs: parseStringArray(rule.piiPackSlugsJson),
+    piiRuleIds: parseStringArray(rule.piiRuleIdsJson),
+    piiDisabledDetectors: parseStringArray(rule.piiDisabledDetectorsJson),
   };
   creating.value = false;
   editing.value = rule;
+}
+
+function parseStringArray(json: string | null | undefined): string[] {
+  if (!json) return [];
+  try {
+    const parsed = JSON.parse(json);
+    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+function togglePack(slug: string) {
+  const i = form.value.piiPackSlugs.indexOf(slug);
+  if (i >= 0) form.value.piiPackSlugs.splice(i, 1);
+  else form.value.piiPackSlugs.push(slug);
+}
+
+function toggleRule(id: string) {
+  const i = form.value.piiRuleIds.indexOf(id);
+  if (i >= 0) form.value.piiRuleIds.splice(i, 1);
+  else form.value.piiRuleIds.push(id);
+}
+
+function toggleDetectorOff(slug: string, kind: string) {
+  const key = `${slug}:${kind}`;
+  const i = form.value.piiDisabledDetectors.indexOf(key);
+  if (i >= 0) form.value.piiDisabledDetectors.splice(i, 1);
+  else form.value.piiDisabledDetectors.push(key);
 }
 
 function startNew() {
@@ -112,6 +153,9 @@ const payload = computed(() => {
     priority: f.priority,
     formality: f.formality || null,
     redactPii: f.redactPii,
+    piiPackSlugsJson: f.piiPackSlugs.length ? JSON.stringify(f.piiPackSlugs) : null,
+    piiRuleIdsJson: f.piiRuleIds.length ? JSON.stringify(f.piiRuleIds) : null,
+    piiDisabledDetectorsJson: f.piiDisabledDetectors.length ? JSON.stringify(f.piiDisabledDetectors) : null,
   };
 });
 
@@ -120,7 +164,16 @@ const payloadPreview = computed(() => JSON.stringify(payload.value, null, 2));
 async function refresh() {
   loading.value = true;
   error.value = null;
-  try { rules.value = await api.proxyRules.list(); }
+  try {
+    const [rs, packs, prs] = await Promise.all([
+      api.proxyRules.list(),
+      api.piiPacks.list(),
+      api.piiRules.list(form.value.tenantId),
+    ]);
+    rules.value = rs;
+    piiPacks.value = packs;
+    piiRulesAvailable.value = prs;
+  }
   catch (e: unknown) { error.value = e instanceof Error ? e.message : String(e); }
   finally { loading.value = false; }
 }
@@ -227,6 +280,68 @@ onMounted(refresh);
               <input type="checkbox" v-model="form.redactPii" />
               Redact PII before upstream sees it
             </label>
+          </div>
+        </div>
+
+        <div v-if="form.redactPii" class="card">
+          <div class="card-header">
+            <span>PII detection</span>
+            <span class="text-xs text-surface-700">
+              Pick which packs apply, then optionally turn off individual detectors.
+              Custom rules from the PII rules page are bound here too.
+            </span>
+          </div>
+          <div class="card-body flex flex-col gap-3">
+            <div>
+              <div class="text-xs text-surface-700 mb-1 font-500">Premade packs</div>
+              <div v-if="piiPacks.length === 0" class="text-xs text-surface-700">
+                No packs loaded. Visit <RouterLink class="text-brand-600" to="/pii-rules">PII rules</RouterLink>
+                first.
+              </div>
+              <div v-else class="flex flex-col gap-2">
+                <div v-for="pack in piiPacks" :key="pack.slug"
+                     class="border border-surface-200 rounded-md">
+                  <label class="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-surface-50">
+                    <input type="checkbox"
+                           :checked="form.piiPackSlugs.includes(pack.slug)"
+                           @change="togglePack(pack.slug)" />
+                    <div class="flex-1">
+                      <div class="text-sm">{{ pack.name }}</div>
+                      <div class="text-xs text-surface-700">{{ pack.description }}</div>
+                    </div>
+                    <span class="chip text-xs">{{ pack.detectors.length }} detectors</span>
+                  </label>
+                  <div v-if="form.piiPackSlugs.includes(pack.slug)"
+                       class="border-t border-surface-200 px-3 py-2 bg-surface-0 flex flex-wrap gap-2">
+                    <label v-for="d in pack.detectors" :key="d.kind"
+                           class="flex items-center gap-1 text-xs cursor-pointer">
+                      <input type="checkbox"
+                             :checked="!form.piiDisabledDetectors.includes(`${pack.slug}:${d.kind}`)"
+                             @change="toggleDetectorOff(pack.slug, d.kind)" />
+                      <code>{{ d.kind }}</code>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div v-if="piiRulesAvailable.length > 0">
+              <div class="text-xs text-surface-700 mb-1 font-500">Custom rules</div>
+              <div class="flex flex-col gap-1">
+                <label v-for="r in piiRulesAvailable" :key="r.id"
+                       class="flex items-center gap-2 px-2 py-1 hover:bg-surface-50 cursor-pointer">
+                  <input type="checkbox"
+                         :checked="form.piiRuleIds.includes(r.id)"
+                         @change="toggleRule(r.id)" />
+                  <code class="text-xs">{{ r.id }}</code>
+                  <span class="text-xs">{{ r.name }}</span>
+                  <span v-if="!r.enabled" class="chip text-xs ml-auto">disabled</span>
+                </label>
+              </div>
+            </div>
+            <div v-else class="text-xs text-surface-700">
+              No custom rules in this tenant.
+              <RouterLink class="text-brand-600" to="/pii-rules">Add some on the PII rules page.</RouterLink>
+            </div>
           </div>
         </div>
 

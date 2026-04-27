@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Authentication. AdaptiveAPI documentation.</title>
+<meta name="description" content="How AdaptiveAPI handles tokens for DeepL, OpenAI, Anthropic, MCP servers, and the admin UI. Where each one goes and how it is stored." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../assets/styles.css" />
+<link rel="stylesheet" href="../assets/docs.css" />
+<link rel="icon" type="image/svg+xml" href="../assets/favicon.svg" />
+</head>
+<body>
+
+<header class="nav">
+  <div class="nav-inner">
+    <a href="../index.html" class="brand">
+      <span class="brand-mark" aria-hidden="true">◆</span>
+      <span class="brand-name">adaptive<em>api</em></span>
+    </a>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="../index.html#how">How it works</a>
+      <a href="../index.html#features">Features</a>
+      <a href="index.html">Docs</a>
+      <a href="../index.html#faq">FAQ</a>
+    </nav>
+    <div class="nav-actions">
+      <button class="theme-toggle" type="button" aria-label="Toggle theme" data-theme-toggle>
+        <span class="theme-icon-light" aria-hidden="true">☀</span>
+        <span class="theme-icon-dark" aria-hidden="true">☾</span>
+      </button>
+      <a class="btn btn-ghost" href="https://github.com/DeeJayTC/adaptiveapi">GitHub</a>
+      <a class="btn btn-primary" href="routes.html">Next <span aria-hidden="true">→</span></a>
+    </div>
+  </div>
+</header>
+
+<div class="docs-shell">
+
+  <aside class="docs-side" aria-label="Documentation navigation">
+    <h4>Start here</h4>
+    <ul>
+      <li><a href="index.html">Overview</a></li>
+      <li><a href="getting-started.html">Getting started</a></li>
+      <li><a href="authentication.html" class="is-active">Authentication</a></li>
+      <li><a href="routes.html">Routes and tokens</a></li>
+    </ul>
+    <h4>Integrate</h4>
+    <ul>
+      <li><a href="llm-providers.html">LLM providers</a></li>
+      <li><a href="mcp.html">MCP servers</a></li>
+      <li><a href="generic-json.html">Generic JSON API</a></li>
+    </ul>
+    <h4>Features</h4>
+    <ul>
+      <li><a href="style-rules.html">Style rules &amp; customization</a></li>
+      <li><a href="pii.html">PII detection</a></li>
+      <li><a href="translation.html">Translation pipeline</a></li>
+    </ul>
+    <h4>Operate</h4>
+    <ul>
+      <li><a href="deployment.html">Deployment</a></li>
+      <li><a href="configuration.html">Configuration</a></li>
+    </ul>
+  </aside>
+
+  <main class="docs-main">
+    <span class="docs-eyebrow">Start here</span>
+    <h1><em>Authentication</em></h1>
+    <p class="docs-lede">
+      AdaptiveAPI handles three sets of credentials. Some you set once in
+      configuration. Some travel with each request. Some are issued by the admin
+      UI. This page explains where each one goes, who sees it, and how it is
+      stored.
+    </p>
+
+    <h2>The three layers</h2>
+    <ol>
+      <li><strong>Translator-backend keys</strong>. DeepL or LLM-translator API key. Set once in config. Stored encrypted at rest.</li>
+      <li><strong>Upstream provider keys</strong>. OpenAI, Anthropic, MCP server tokens. Travel with each request. Never stored. Forwarded byte identical.</li>
+      <li><strong>Route tokens</strong>. Issued by the admin UI. Identify which route the caller is using. Argon2id-hashed at rest.</li>
+    </ol>
+    <p>The admin UI itself is a fourth layer (OIDC for production, optional open dev mode for local).</p>
+
+    <h2>Translator-backend keys</h2>
+    <p>
+      AdaptiveAPI calls a translator backend on your behalf. You configure that
+      key once. It lives in <code>deploy/.env</code> for Docker, in your
+      <code>appsettings.json</code> or environment variables for source builds,
+      and in a Kubernetes Secret for Helm.
+    </p>
+
+    <h3>DeepL</h3>
+    <p>
+      DeepL is the default recommended translator backend. You need an account
+      with the DeepL API. Free and paid tiers use different base URLs.
+    </p>
+<pre><code>LLMTRANS_DEFAULT_TRANSLATOR=deepl
+DEEPL_API_KEY=<span class="t-str">"your-deepl-api-key"</span>
+DEEPL_BASE_URL=https://api.deepl.com/         <span class="t-com"># paid tier</span>
+<span class="t-com"># DEEPL_BASE_URL=https://api-free.deepl.com/  # free tier</span></code></pre>
+    <p>
+      Get a key at <code>www.deepl.com/pro-api</code>. The free tier is rate
+      limited and capped at 500,000 characters per month. The paid tier has no
+      monthly cap and pricing is per character.
+    </p>
+
+    <h3>LLM translator</h3>
+    <p>
+      As an alternative to DeepL, you can use any OpenAI-compatible endpoint as
+      the translator. Useful when you already have an LLM provider relationship
+      and want a single bill, or when you want a self-hosted translator like
+      vLLM.
+    </p>
+<pre><code>LLMTRANS_DEFAULT_TRANSLATOR=llm
+LLM_TRANSLATOR_API_KEY=<span class="t-str">"sk-..."</span>
+LLM_TRANSLATOR_BASE_URL=https://api.openai.com/
+LLM_TRANSLATOR_MODEL=gpt-4o-mini
+
+<span class="t-com"># or self-hosted:</span>
+<span class="t-com"># LLM_TRANSLATOR_BASE_URL=http://vllm.internal:8000/</span>
+<span class="t-com"># LLM_TRANSLATOR_MODEL=meta-llama/Meta-Llama-3.1-70B-Instruct</span></code></pre>
+
+    <h3>Passthrough (no translator)</h3>
+    <p>
+      The default. Useful while wiring up routes for the first time. The
+      pipeline runs but leaves text unchanged. No key needed.
+    </p>
+<pre><code>LLMTRANS_DEFAULT_TRANSLATOR=passthrough</code></pre>
+
+    <h3>How translator keys are stored</h3>
+    <p>
+      In configuration, keys are read from environment variables or an
+      <code>appsettings.json</code> file. Anything you put into the database via
+      the admin UI (per-tenant overrides) is encrypted at rest using the
+      framework data-protection key.
+    </p>
+
+    <h2>Upstream provider keys</h2>
+    <p>
+      The keys for OpenAI, Anthropic, and similar are <em>your application's</em>
+      keys. AdaptiveAPI does not have its own. It forwards whatever the caller
+      sends in the <code>Authorization</code> header, byte identical, to the
+      upstream.
+    </p>
+
+    <h3>OpenAI</h3>
+    <p>
+      Pass your real OpenAI API key as <code>api_key</code> in the SDK. The SDK
+      sends it as <code>Authorization: Bearer sk-...</code>. AdaptiveAPI forwards
+      that header upstream untouched.
+    </p>
+<pre><code><span class="t-key">from</span> openai <span class="t-key">import</span> OpenAI
+
+client = OpenAI(
+    api_key=<span class="t-str">"sk-..."</span>,                    <span class="t-com"># your real OpenAI key</span>
+    base_url=<span class="t-str">"https://adaptiveapi.example.com/v1/rt_yourtenant_xxxxx"</span>,
+)</code></pre>
+
+    <h3>Anthropic</h3>
+    <p>
+      Same pattern. The Anthropic SDK uses the <code>x-api-key</code> header
+      rather than <code>Authorization</code>. Both are forwarded.
+    </p>
+<pre><code><span class="t-key">import</span> anthropic
+
+client = anthropic.Anthropic(
+    api_key=<span class="t-str">"sk-ant-..."</span>,
+    base_url=<span class="t-str">"https://adaptiveapi.example.com/anthropic/v1/rt_yourtenant_xxxxx"</span>,
+)</code></pre>
+
+    <h3>MCP server tokens</h3>
+    <p>
+      Remote MCP servers usually authenticate with OAuth Bearer tokens. Put your
+      token in the <code>headers</code> block of the MCP client config. It rides
+      upstream untouched.
+    </p>
+<pre><code>{
+  <span class="t-str">"mcpServers"</span>: {
+    <span class="t-str">"linear-de"</span>: {
+      <span class="t-str">"url"</span>: <span class="t-str">"https://adaptiveapi.example.com/mcp/rt_yourtenant_xxxxx"</span>,
+      <span class="t-str">"headers"</span>: {
+        <span class="t-str">"Authorization"</span>: <span class="t-str">"Bearer &lt;your-linear-oauth-token&gt;"</span>
+      }
+    }
+  }
+}</code></pre>
+    <p>
+      Stdio MCP servers receive their credentials via env vars on the local
+      machine, exactly as they do today. AdaptiveAPI never sees them.
+    </p>
+
+    <h3>Other providers (Cohere, Mistral, custom)</h3>
+    <p>
+      Same idea via the generic adapter. The inbound <code>Authorization</code>
+      header is forwarded to the upstream URL configured on the route. See
+      <a href="generic-json.html">Generic JSON API</a>.
+    </p>
+
+    <h3>How upstream keys are handled</h3>
+    <ul>
+      <li><strong>Never stored.</strong> Upstream keys are not persisted in the database.</li>
+      <li><strong>Never logged in plain text.</strong> The audit log stores a SHA-256 fingerprint of the <code>Authorization</code> value, never the value itself. Useful for abuse correlation, useless for impersonation.</li>
+      <li><strong>Never sent to the translator.</strong> Translation calls go to DeepL or your LLM translator, with their own keys. Upstream keys are not part of that flow.</li>
+    </ul>
+
+    <h2>Route tokens</h2>
+    <p>
+      Route tokens are issued by the admin UI when you create a route. They look
+      like <code>rt_yourtenant_xxxxx</code>. They identify which route the call
+      is using. They are not provider credentials.
+    </p>
+    <p>
+      Tokens are hashed with Argon2id before storage. The plain value is shown
+      to you exactly once at creation time. After that, the admin UI only
+      displays the prefix and a fingerprint. Lose it, rotate it.
+    </p>
+    <p>
+      For local development you can seed a stable token at startup with
+      <code>Dev__FixedRouteToken=rt_dev_LOCALDEMO</code>. Local only. Do not set
+      this in production.
+    </p>
+
+    <h2>Admin UI authentication</h2>
+    <p>The admin UI mounts at <code>/admin</code>. Two modes:</p>
+    <ul>
+      <li><strong>OIDC</strong>. The production default. Configure with <code>Auth__Provider=oidc</code> and the standard OIDC discovery URL plus a client secret. Works with Azure AD, Auth0, Keycloak, Okta, anything OIDC-compliant.</li>
+      <li><strong>Open dev mode</strong>. <code>Auth__Provider=none</code>. Useful for local development. The UI is open. Do not use this in production.</li>
+    </ul>
+
+    <h2>Optional: Presidio sidecar</h2>
+    <p>
+      The PII redactor's higher-recall mode runs Microsoft Presidio Analyzer as
+      an HTTP sidecar. It typically does not require auth on the internal
+      network. If you put it behind one, AdaptiveAPI forwards a configured
+      bearer token via <code>PiiRedactor__Presidio__AuthHeader</code>.
+    </p>
+
+    <h2>Quick reference</h2>
+    <table>
+      <thead>
+        <tr><th>Credential</th><th>Where it goes</th><th>How it is stored</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>DeepL API key</td><td><code>DEEPL_API_KEY</code> env var</td><td>Encrypted at rest in DB if set via UI.</td></tr>
+        <tr><td>LLM-translator key</td><td><code>LLM_TRANSLATOR_API_KEY</code> env var</td><td>Encrypted at rest in DB if set via UI.</td></tr>
+        <tr><td>OpenAI / Anthropic / Cohere key</td><td>Inbound <code>Authorization</code> header</td><td>Never stored. SHA-256 fingerprint in audit only.</td></tr>
+        <tr><td>MCP OAuth token</td><td>Inbound <code>Authorization</code> header</td><td>Never stored. SHA-256 fingerprint in audit only.</td></tr>
+        <tr><td>Route token</td><td>URL path segment</td><td>Argon2id hash in DB.</td></tr>
+        <tr><td>Admin UI session</td><td>OIDC provider</td><td>Issued by your IdP. AdaptiveAPI verifies signature.</td></tr>
+      </tbody>
+    </table>
+
+    <blockquote>
+      <p>
+        <strong>Threat-model summary.</strong> A compromised AdaptiveAPI database
+        leaks: route token hashes (useless without preimage), translator-backend
+        keys (rotate them), audit metadata (no bodies, no plaintext upstream
+        tokens). It does not leak any caller's OpenAI key, Anthropic key, MCP
+        token, or message content.
+      </p>
+    </blockquote>
+
+    <div class="docs-pager">
+      <a class="pager-prev" href="getting-started.html">
+        <span class="pager-label">Previous</span>
+        <span class="pager-title">Getting started</span>
+      </a>
+      <a class="pager-next" href="routes.html">
+        <span class="pager-label">Next</span>
+        <span class="pager-title">Routes and tokens <span aria-hidden="true">→</span></span>
+      </a>
+    </div>
+  </main>
+
+</div>
+
+<footer class="footer">
+  <div class="container footer-inner">
+    <div class="footer-brand">
+      <span class="brand-mark" aria-hidden="true">◆</span>
+      <span class="brand-name">adaptive<em>api</em></span>
+    </div>
+    <p class="footer-meta">
+      Built on .NET 10, Vue 3, and the official DeepL .NET SDK.<br />
+      Copyright © 2026 Tim Cadenbach. AGPL v3.
+    </p>
+    <div class="footer-links">
+      <a href="https://github.com/DeeJayTC/adaptiveapi">GitHub</a>
+      <a href="https://github.com/DeeJayTC/adaptiveapi/blob/main/LICENSE">License</a>
+      <a href="index.html">Docs</a>
+    </div>
+  </div>
+</footer>
+
+<script src="../assets/script.js" defer></script>
+</body>
+</html>

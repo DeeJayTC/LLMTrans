@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Style rules and customization. AdaptiveAPI documentation.</title>
+<meta name="description" content="Locale-aware adaptation. Translate not just the words but the number formats, date formats, formality, and terminology your users expect." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../assets/styles.css" />
+<link rel="stylesheet" href="../assets/docs.css" />
+<link rel="icon" type="image/svg+xml" href="../assets/favicon.svg" />
+</head>
+<body>
+
+<header class="nav">
+  <div class="nav-inner">
+    <a href="../index.html" class="brand">
+      <span class="brand-mark" aria-hidden="true">◆</span>
+      <span class="brand-name">adaptive<em>api</em></span>
+    </a>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="../index.html#how">How it works</a>
+      <a href="../index.html#features">Features</a>
+      <a href="index.html">Docs</a>
+      <a href="../index.html#faq">FAQ</a>
+    </nav>
+    <div class="nav-actions">
+      <button class="theme-toggle" type="button" aria-label="Toggle theme" data-theme-toggle>
+        <span class="theme-icon-light" aria-hidden="true">☀</span>
+        <span class="theme-icon-dark" aria-hidden="true">☾</span>
+      </button>
+      <a class="btn btn-ghost" href="https://github.com/DeeJayTC/adaptiveapi">GitHub</a>
+      <a class="btn btn-primary" href="pii.html">Next <span aria-hidden="true">→</span></a>
+    </div>
+  </div>
+</header>
+
+<div class="docs-shell">
+
+  <aside class="docs-side" aria-label="Documentation navigation">
+    <h4>Start here</h4>
+    <ul>
+      <li><a href="index.html">Overview</a></li>
+      <li><a href="getting-started.html">Getting started</a></li>
+      <li><a href="authentication.html">Authentication</a></li>
+      <li><a href="routes.html">Routes and tokens</a></li>
+    </ul>
+    <h4>Integrate</h4>
+    <ul>
+      <li><a href="llm-providers.html">LLM providers</a></li>
+      <li><a href="mcp.html">MCP servers</a></li>
+      <li><a href="generic-json.html">Generic JSON API</a></li>
+    </ul>
+    <h4>Features</h4>
+    <ul>
+      <li><a href="style-rules.html" class="is-active">Style rules &amp; customization</a></li>
+      <li><a href="pii.html">PII detection</a></li>
+      <li><a href="translation.html">Translation pipeline</a></li>
+    </ul>
+    <h4>Operate</h4>
+    <ul>
+      <li><a href="deployment.html">Deployment</a></li>
+      <li><a href="configuration.html">Configuration</a></li>
+    </ul>
+  </aside>
+
+  <main class="docs-main">
+    <span class="docs-eyebrow">Features</span>
+    <h1>Style rules &amp; <em>customization</em></h1>
+    <p class="docs-lede">
+      Translation gets the words right. Style rules get everything else right.
+      Number formats, date formats, formality, quote styles, currency, and
+      domain terminology all bend to the locale your user actually expects.
+      The model keeps thinking in one shape. Your user keeps reading their own.
+    </p>
+
+    <h2>The case for style rules</h2>
+    <p>
+      A user types <code>Was kostet das Produkt 1.250,00 €?</code> in a German
+      checkout flow. Their bank statement shows <code>1.250,00 €</code>. Their
+      spreadsheets use commas as decimal separators and dots as thousands
+      separators. That is what they expect to see, end to end.
+    </p>
+    <p>
+      Now your model is trained on US-format text. It thinks the literal string
+      <code>1.250,00</code> means "1 point 250 comma 00." It will not arithmetic
+      that correctly. It might treat <code>1.250</code> as "1250" or as "1.25"
+      depending on context. The user gets a confused answer. You log a bug.
+    </p>
+    <p>
+      Style rules fix this without retraining anyone. The LLM sees
+      <code>1,250.00</code>. It computes correctly. The reply comes back with
+      every numeric span re-formatted to <code>1.250,00 €</code> for the user.
+      Same for dates, currency symbols, formality, terminology.
+    </p>
+
+    <h2>What a style rule contains</h2>
+    <p>A style rule is bound to a route or referenced per request via <code>X-AdaptiveApi-Style-Rule</code>. It has three parts:</p>
+    <ul>
+      <li><strong>Locale formatting</strong>. Number, date, currency, and quote conventions for the target language.</li>
+      <li><strong>Tone preset</strong>. Formality (formal, informal), register (technical, marketing, casual), and audience.</li>
+      <li><strong>Custom instructions</strong>. Up to ten 300-character natural-language directives passed to DeepL on every translate call.</li>
+    </ul>
+
+    <h2>Number formats</h2>
+    <p>The most common bug source. Locale presets cover the obvious cases. Custom instructions cover the rest.</p>
+
+    <table>
+      <thead>
+        <tr><th>Locale</th><th>Decimal separator</th><th>Thousands separator</th><th>Example</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>en-US</td><td><code>.</code></td><td><code>,</code></td><td><code>1,234,567.89</code></td></tr>
+        <tr><td>de-DE</td><td><code>,</code></td><td><code>.</code></td><td><code>1.234.567,89</code></td></tr>
+        <tr><td>fr-FR</td><td><code>,</code></td><td><code>(space)</code></td><td><code>1 234 567,89</code></td></tr>
+        <tr><td>en-IN</td><td><code>.</code></td><td><code>,</code> (lakh)</td><td><code>12,34,567.89</code></td></tr>
+      </tbody>
+    </table>
+
+    <p>
+      The pipeline normalises numbers to the source locale before the model
+      sees them, then re-formats them to the target locale on the way back.
+      Numeric spans inside placeholders (which the translator does not modify)
+      are converted explicitly.
+    </p>
+
+    <h2>Date and time formats</h2>
+    <p>Dates are even more locale-bound than numbers. The model gets ISO. The user gets their own.</p>
+
+    <table>
+      <thead>
+        <tr><th>Locale</th><th>Short date</th><th>Long date</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>en-US</td><td><code>04/27/2026</code></td><td><code>April 27, 2026</code></td></tr>
+        <tr><td>en-GB</td><td><code>27/04/2026</code></td><td><code>27 April 2026</code></td></tr>
+        <tr><td>de-DE</td><td><code>27.04.2026</code></td><td><code>27. April 2026</code></td></tr>
+        <tr><td>ja-JP</td><td><code>2026/04/27</code></td><td><code>2026年4月27日</code></td></tr>
+      </tbody>
+    </table>
+
+    <p>
+      Times follow the same rule. 12-hour with am/pm in en-US, 24-hour in most of
+      the rest of the world. The style rule's <code>timeFormat</code> can be
+      <code>locale-default</code>, <code>12h</code>, or <code>24h</code>.
+    </p>
+
+    <h2>Currency formats</h2>
+    <p>
+      Symbol position, spacing, and minor-unit grouping all vary. The pipeline
+      normalises to ISO 4217 amounts on the way in and re-formats per locale on
+      the way out.
+    </p>
+
+    <table>
+      <thead>
+        <tr><th>Locale</th><th>EUR</th><th>USD</th><th>JPY</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>en-US</td><td><code>€1,250.00</code></td><td><code>$1,250.00</code></td><td><code>¥1,250</code></td></tr>
+        <tr><td>de-DE</td><td><code>1.250,00 €</code></td><td><code>1.250,00 $</code></td><td><code>1.250 ¥</code></td></tr>
+        <tr><td>fr-FR</td><td><code>1 250,00 €</code></td><td><code>1 250,00 $</code></td><td><code>1 250 ¥</code></td></tr>
+      </tbody>
+    </table>
+
+    <h2>Formality</h2>
+    <p>Languages with grammatical formality (German, French, Spanish, Italian, Dutch, Polish, Japanese, Korean) need an explicit tone choice.</p>
+    <ul>
+      <li><strong>Formal</strong>. Sie / vous / usted / Lei / Sie. Default for B2B, banking, healthcare, legal.</li>
+      <li><strong>Informal</strong>. du / tu / tú / tu / je. Default for consumer apps, gaming, social.</li>
+      <li><strong>Locale default</strong>. Pick the convention common to the locale and audience.</li>
+    </ul>
+    <p>
+      Set <code>formality: "formal"</code> on the style rule, or override per
+      request with <code>X-AdaptiveApi-Formality: informal</code>. DeepL maps
+      this to its native formality flag where supported, and falls back to a
+      custom instruction otherwise.
+    </p>
+
+    <h2>Quote styles and punctuation</h2>
+    <p>Easy to overlook, hard to unsee once you do.</p>
+    <table>
+      <thead>
+        <tr><th>Locale</th><th>Quotes</th><th>Apostrophe</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>en-US</td><td><code>"text"</code></td><td><code>'</code></td></tr>
+        <tr><td>de-DE</td><td><code>„text"</code></td><td><code>'</code></td></tr>
+        <tr><td>fr-FR</td><td><code>« text »</code></td><td><code>'</code></td></tr>
+        <tr><td>ja-JP</td><td><code>「text」</code></td><td><code>'</code></td></tr>
+      </tbody>
+    </table>
+
+    <h2>Domain terminology</h2>
+    <p>
+      Style rules pair naturally with glossaries. A glossary handles the
+      one-word-to-one-word case (always render <code>checkout</code> as
+      <code>Kasse</code>). Style rules handle the broader patterns
+      (always use formal address; render technical names in English; expand
+      acronyms on first use).
+    </p>
+    <p>See <a href="translation.html">Translation pipeline</a> for the glossary mechanics.</p>
+
+    <h2>Custom instructions</h2>
+    <p>
+      Up to ten 300-character natural-language instructions per style rule. They
+      are passed to DeepL on every translate call (DeepL v3 supports per-call
+      style instructions natively). Useful for things that do not map cleanly to
+      preset switches.
+    </p>
+    <ul>
+      <li>"Translate marketing copy idiomatically rather than literally."</li>
+      <li>"Always use the formal Sie form, even for short responses."</li>
+      <li>"Keep code snippets, function names, and CLI flags in English."</li>
+      <li>"Render percentages with a thin space before the percent sign (12 %)."</li>
+      <li>"For currency, use the ISO code (EUR) instead of the symbol (€)."</li>
+      <li>"Address the reader in the second person plural where the source uses 'we'."</li>
+    </ul>
+
+    <h2>Worked example: a German B2B SaaS app</h2>
+    <p>You run a financial-reporting SaaS that takes user questions and returns analyses. Most users are German finance teams.</p>
+
+<pre><code>{
+  <span class="t-str">"id"</span>: <span class="t-str">"s_finance_de"</span>,
+  <span class="t-str">"name"</span>: <span class="t-str">"Finance, formal German"</span>,
+  <span class="t-str">"locale"</span>: {
+    <span class="t-str">"target"</span>: <span class="t-str">"de-DE"</span>,
+    <span class="t-str">"numberFormat"</span>: <span class="t-str">"de-DE"</span>,
+    <span class="t-str">"dateFormat"</span>: <span class="t-str">"de-DE"</span>,
+    <span class="t-str">"timeFormat"</span>: <span class="t-str">"24h"</span>,
+    <span class="t-str">"currency"</span>: { <span class="t-str">"defaultCode"</span>: <span class="t-str">"EUR"</span>, <span class="t-str">"format"</span>: <span class="t-str">"de-DE"</span> },
+    <span class="t-str">"quoteStyle"</span>: <span class="t-str">"de"</span>
+  },
+  <span class="t-str">"tone"</span>: { <span class="t-str">"formality"</span>: <span class="t-str">"formal"</span>, <span class="t-str">"register"</span>: <span class="t-str">"professional"</span> },
+  <span class="t-str">"customInstructions"</span>: [
+    <span class="t-str">"Always address the reader formally (Sie)."</span>,
+    <span class="t-str">"Render financial figures with a non-breaking space between value and currency."</span>,
+    <span class="t-str">"Keep ticker symbols and ISIN codes in English without translation."</span>,
+    <span class="t-str">"Translate technical accounting terms using HGB-aligned vocabulary where applicable."</span>
+  ]
+}</code></pre>
+
+    <p>Bind it to a route, or override per request:</p>
+
+<pre><code>curl -X POST <span class="t-str">"https://adaptiveapi.example.com/v1/rt_yourtenant_xxxxx/chat/completions"</span> \
+  -H <span class="t-str">"Authorization: Bearer sk-..."</span> \
+  -H <span class="t-str">"X-AdaptiveApi-Target-Lang: de"</span> \
+  -H <span class="t-str">"X-AdaptiveApi-Style-Rule: s_finance_de"</span> \
+  -H <span class="t-str">"Content-Type: application/json"</span> \
+  -d '{
+    "model": "gpt-4o-mini",
+    "messages": [
+      {"role": "user", "content": "Wie viel Umsatz haben wir im Q1 mit 1.250 Kunden gemacht?"}
+    ]
+  }'</code></pre>
+
+    <p>What happens on the wire:</p>
+    <ol>
+      <li>The user query is normalised. <code>1.250</code> becomes <code>1,250</code> for the model.</li>
+      <li>The system prompt context (formality, register) is injected for the translation step, not the model step.</li>
+      <li>The model thinks in English, computes with the US-format numbers, and answers.</li>
+      <li>The reply comes back. Numeric spans get re-formatted to <code>1.250</code>. Currency to <code>1.250,00 €</code>. Dates to <code>27.04.2026</code>.</li>
+      <li>Sie, not du. ISIN codes left alone. HGB-aligned terms used where possible.</li>
+    </ol>
+
+    <h2>Worked example: a global gaming app</h2>
+    <p>
+      Same product, different audience. Style rule for casual French players,
+      heavy on idiomatic translation.
+    </p>
+
+<pre><code>{
+  <span class="t-str">"id"</span>: <span class="t-str">"s_gaming_fr"</span>,
+  <span class="t-str">"name"</span>: <span class="t-str">"Gaming, casual French"</span>,
+  <span class="t-str">"locale"</span>: {
+    <span class="t-str">"target"</span>: <span class="t-str">"fr-FR"</span>,
+    <span class="t-str">"numberFormat"</span>: <span class="t-str">"fr-FR"</span>,
+    <span class="t-str">"dateFormat"</span>: <span class="t-str">"fr-FR"</span>,
+    <span class="t-str">"quoteStyle"</span>: <span class="t-str">"fr"</span>
+  },
+  <span class="t-str">"tone"</span>: { <span class="t-str">"formality"</span>: <span class="t-str">"informal"</span>, <span class="t-str">"register"</span>: <span class="t-str">"casual"</span> },
+  <span class="t-str">"customInstructions"</span>: [
+    <span class="t-str">"Use the informal tu form throughout."</span>,
+    <span class="t-str">"Translate idiomatically. Slang is welcome where the source is casual."</span>,
+    <span class="t-str">"Keep game-mechanics terms (XP, HP, loot, raid) in English."</span>
+  ]
+}</code></pre>
+
+    <h2>Per-route vs per-request</h2>
+    <p>
+      Bind a default style rule to the route. Override per request with the
+      <code>X-AdaptiveApi-Style-Rule</code> header. Useful when one client
+      surface (admin console) needs a different tone than another (chatbot)
+      while sharing the same route token and translator backend.
+    </p>
+
+    <blockquote>
+      <p>
+        <strong>Tip.</strong> Style rules are the right place for "this LLM keeps
+        getting the format wrong" bugs. Adding a custom instruction is faster
+        than re-prompting the model, and the rule applies to every call without
+        further code changes.
+      </p>
+    </blockquote>
+
+    <div class="docs-pager">
+      <a class="pager-prev" href="generic-json.html">
+        <span class="pager-label">Previous</span>
+        <span class="pager-title">Generic JSON API</span>
+      </a>
+      <a class="pager-next" href="pii.html">
+        <span class="pager-label">Next</span>
+        <span class="pager-title">PII detection <span aria-hidden="true">→</span></span>
+      </a>
+    </div>
+  </main>
+
+</div>
+
+<footer class="footer">
+  <div class="container footer-inner">
+    <div class="footer-brand">
+      <span class="brand-mark" aria-hidden="true">◆</span>
+      <span class="brand-name">adaptive<em>api</em></span>
+    </div>
+    <p class="footer-meta">
+      Built on .NET 10, Vue 3, and the official DeepL .NET SDK.<br />
+      Copyright © 2026 Tim Cadenbach. AGPL v3.
+    </p>
+    <div class="footer-links">
+      <a href="https://github.com/DeeJayTC/adaptiveapi">GitHub</a>
+      <a href="https://github.com/DeeJayTC/adaptiveapi/blob/main/LICENSE">License</a>
+      <a href="index.html">Docs</a>
+    </div>
+  </div>
+</footer>
+
+<script src="../assets/script.js" defer></script>
+</body>
+</html>

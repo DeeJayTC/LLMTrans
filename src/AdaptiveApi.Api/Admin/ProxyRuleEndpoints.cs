@@ -17,12 +17,15 @@ public static class ProxyRuleEndpoints
         string Id, string TenantId, string Name,
         string? ScopeJson, string? AllowlistJson, string? DenylistJson,
         string? PlaceholderPatternsJson, string? Formality, int Priority,
-        bool RedactPii = false, string? SystemContext = null);
+        bool RedactPii = false, string? SystemContext = null,
+        string? PiiPackSlugsJson = null, string? PiiRuleIdsJson = null,
+        string? PiiDisabledDetectorsJson = null);
 
     public sealed record Dto(
         string Id, string TenantId, string Name,
         string ScopeJson, string? AllowlistJson, string? DenylistJson,
-        string? Formality, int Priority, bool RedactPii, string? SystemContext);
+        string? Formality, int Priority, bool RedactPii, string? SystemContext,
+        string? PiiPackSlugsJson, string? PiiRuleIdsJson, string? PiiDisabledDetectorsJson);
 
     private static async Task<IResult> Create(CreateDto dto, AdaptiveApiDbContext db, CancellationToken ct)
     {
@@ -42,18 +45,25 @@ public static class ProxyRuleEndpoints
             Priority = dto.Priority,
             RedactPii = dto.RedactPii,
             SystemContext = dto.SystemContext is { Length: > 4000 } ? dto.SystemContext[..4000] : dto.SystemContext,
+            PiiPackSlugsJson = dto.PiiPackSlugsJson,
+            PiiRuleIdsJson = dto.PiiRuleIdsJson,
+            PiiDisabledDetectorsJson = dto.PiiDisabledDetectorsJson,
         });
         await db.SaveChangesAsync(ct);
         return Results.Created($"/admin/proxy-rules/{dto.Id}",
             new Dto(dto.Id, dto.TenantId, dto.Name, dto.ScopeJson ?? "{}",
-                dto.AllowlistJson, dto.DenylistJson, dto.Formality, dto.Priority, dto.RedactPii, dto.SystemContext));
+                dto.AllowlistJson, dto.DenylistJson, dto.Formality, dto.Priority,
+                dto.RedactPii, dto.SystemContext,
+                dto.PiiPackSlugsJson, dto.PiiRuleIdsJson, dto.PiiDisabledDetectorsJson));
     }
 
     private static async Task<IResult> List(AdaptiveApiDbContext db, CancellationToken ct) =>
         Results.Ok(await db.ProxyRules.AsNoTracking()
             .OrderByDescending(x => x.Priority)
             .Select(x => new Dto(x.Id, x.TenantId, x.Name, x.ScopeJson,
-                x.AllowlistJson, x.DenylistJson, x.Formality, x.Priority, x.RedactPii, x.SystemContext))
+                x.AllowlistJson, x.DenylistJson, x.Formality, x.Priority,
+                x.RedactPii, x.SystemContext,
+                x.PiiPackSlugsJson, x.PiiRuleIdsJson, x.PiiDisabledDetectorsJson))
             .ToListAsync(ct));
 
     private static async Task<IResult> Delete(string id, AdaptiveApiDbContext db, CancellationToken ct)

@@ -13,6 +13,7 @@ const nav = [
   { to: '/glossaries', label: 'Glossaries', icon: 'i-carbon-book' },
   { to: '/style-rules', label: 'Style rules', icon: 'i-carbon-pen' },
   { to: '/proxy-rules', label: 'Proxy rules', icon: 'i-carbon-rule' },
+  { to: '/pii-rules', label: 'PII rules', icon: 'i-carbon-shield' },
   { to: '/playground', label: 'Playground', icon: 'i-carbon-play' },
   { to: '/logs', label: 'Logs', icon: 'i-carbon-list-boxes' },
   { to: '/settings', label: 'Settings', icon: 'i-carbon-settings' },

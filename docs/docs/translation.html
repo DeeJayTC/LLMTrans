@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Translation pipeline. AdaptiveAPI documentation.</title>
+<meta name="description" content="Streaming, tool calls, glossaries, style rules, and PII redaction in the AdaptiveAPI translation pipeline." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../assets/styles.css" />
+<link rel="stylesheet" href="../assets/docs.css" />
+<link rel="icon" type="image/svg+xml" href="../assets/favicon.svg" />
+</head>
+<body>
+
+<header class="nav">
+  <div class="nav-inner">
+    <a href="../index.html" class="brand">
+      <span class="brand-mark" aria-hidden="true">◆</span>
+      <span class="brand-name">adaptive<em>api</em></span>
+    </a>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="../index.html#how">How it works</a>
+      <a href="../index.html#features">Features</a>
+      <a href="index.html">Docs</a>
+      <a href="../index.html#faq">FAQ</a>
+    </nav>
+    <div class="nav-actions">
+      <button class="theme-toggle" type="button" aria-label="Toggle theme" data-theme-toggle>
+        <span class="theme-icon-light" aria-hidden="true">☀</span>
+        <span class="theme-icon-dark" aria-hidden="true">☾</span>
+      </button>
+      <a class="btn btn-ghost" href="https://github.com/DeeJayTC/adaptiveapi">GitHub</a>
+      <a class="btn btn-primary" href="deployment.html">Next <span aria-hidden="true">→</span></a>
+    </div>
+  </div>
+</header>
+
+<div class="docs-shell">
+
+  <aside class="docs-side" aria-label="Documentation navigation">
+    <h4>Start here</h4>
+    <ul>
+      <li><a href="index.html">Overview</a></li>
+      <li><a href="getting-started.html">Getting started</a></li>
+      <li><a href="authentication.html">Authentication</a></li>
+      <li><a href="routes.html">Routes and tokens</a></li>
+    </ul>
+    <h4>Integrate</h4>
+    <ul>
+      <li><a href="llm-providers.html">LLM providers</a></li>
+      <li><a href="mcp.html">MCP servers</a></li>
+      <li><a href="generic-json.html">Generic JSON API</a></li>
+    </ul>
+    <h4>Features</h4>
+    <ul>
+      <li><a href="style-rules.html">Style rules &amp; customization</a></li>
+      <li><a href="pii.html">PII detection</a></li>
+      <li><a href="translation.html" class="is-active">Translation pipeline</a></li>
+    </ul>
+    <h4>Operate</h4>
+    <ul>
+      <li><a href="deployment.html">Deployment</a></li>
+      <li><a href="configuration.html">Configuration</a></li>
+    </ul>
+  </aside>
+
+  <main class="docs-main">
+    <span class="docs-eyebrow">How it works</span>
+    <h1>The translation <em>pipeline</em></h1>
+    <p class="docs-lede">
+      Every request that hits AdaptiveAPI flows through the same five-stage
+      pipeline. The job of each stage is to keep the wire format intact while
+      moving human text in and out of the right language.
+    </p>
+
+    <h2>The five stages</h2>
+    <ol>
+      <li><strong>Tokenise</strong>. Wrap untranslatable spans (IDs, URLs, code, JSON inside JSON) in <code>&lt;adaptiveapi id="TAG_n"/&gt;</code> placeholders.</li>
+      <li><strong>Translate</strong>. Send the tokenised text to the configured translator.</li>
+      <li><strong>Verify</strong>. Confirm every placeholder reappears in the output exactly once. If not, fall back to source text and increment <code>adaptiveapi_placeholder_integrity_failures_total</code>.</li>
+      <li><strong>Detokenise</strong>. Replace placeholders with their original verbatim spans.</li>
+      <li><strong>Re-emit</strong>. Stitch back into the upstream wire format (chat-completion JSON, Anthropic message, MCP JSON-RPC, generic JSON, SSE event).</li>
+    </ol>
+
+    <h2>Streaming</h2>
+    <p>
+      The pipeline supports two streaming strategies. Pick per route, override
+      per request with <code>X-AdaptiveApi-Stream-Mode</code>.
+    </p>
+
+    <h3>Sentence-boundary (default)</h3>
+    <p>
+      Buffer per <code>choices[i].delta.content</code>, flush at sentence
+      boundaries once the buffer reaches 80 chars (configurable), translate the
+      completed segment, re-emit a synthetic SSE delta. Clients see token-by-token
+      UI with a modest per-sentence latency cost. Best balance of fidelity and
+      perceived responsiveness.
+    </p>
+
+    <h3>Progressive</h3>
+    <p>
+      Translate smaller fragments more often, accepting some retranslation churn.
+      Lower first-token latency at the cost of slightly less stable phrasing
+      mid-sentence. Useful for chat UIs where the first words on screen matter.
+    </p>
+
+    <h3>Post-completion</h3>
+    <p>
+      Buffer the entire response, translate once, emit a single delta. Cheaper
+      per-call when answers are short. Set <code>stream_mode: "post"</code> per
+      route or pass <code>X-AdaptiveApi-Stream-Mode: post</code>.
+    </p>
+
+    <h2>Tool calls</h2>
+    <p>
+      OpenAI's <code>tool_calls[*].function.arguments</code> is a JSON string
+      containing JSON. The pipeline parses the inner JSON, walks it with a
+      key-aware denylist, translates the leaves that are actually human text, and
+      re-serialises.
+    </p>
+    <p>The default denylist:</p>
+    <ul>
+      <li>Exact keys: <code>id</code>, <code>uuid</code>, <code>email</code>, <code>slug</code>, <code>key</code>, <code>locale</code>, <code>tz</code>, <code>url</code>, <code>href</code>, <code>path</code>.</li>
+      <li>Suffix patterns: <code>*_id</code>, <code>*_code</code>, <code>*Id</code>, <code>*Code</code>.</li>
+    </ul>
+    <p>
+      Argument keys are preserved verbatim. <code>tool_call_id</code> and
+      <code>function.name</code> never change. Extend per tenant via proxy rules:
+    </p>
+<pre><code>{
+  <span class="t-str">"toolArgKeys"</span>: [<span class="t-str">"internal_note"</span>, <span class="t-str">"customer_id"</span>]
+}</code></pre>
+
+    <h2>Glossaries</h2>
+    <p>
+      Glossaries are tenant-scoped and bind to a route or override per request
+      with <code>X-AdaptiveApi-Glossary</code>. They map 1:1 to DeepL v3
+      multilingual glossaries on the wire, so terms behave identically whether
+      you call DeepL directly or through AdaptiveAPI.
+    </p>
+    <p>Two entry kinds:</p>
+    <ul>
+      <li><strong>Do-not-translate</strong>. The term is preserved verbatim regardless of language pair.</li>
+      <li><strong>Source-to-target</strong>. The translator is instructed to render this exact term as the given target.</li>
+    </ul>
+
+    <h2>Style rules</h2>
+    <p>
+      DeepL v3 style rules with up to ten 300-character custom instructions per
+      rule, passed to DeepL on every translate call. Useful for things like:
+    </p>
+    <ul>
+      <li>"Always use formal address (Sie, vous)."</li>
+      <li>"Translate marketing copy idiomatically rather than literally."</li>
+      <li>"Keep code snippets and identifiers in English."</li>
+    </ul>
+
+    <h2>PII redaction</h2>
+    <p>
+      The redactor runs early in the pipeline, before translation and before
+      the upstream call. Built-in regex detectors cover email, Luhn-validated
+      cards, US SSN, IBAN, IPv4, and phone numbers. Microsoft Presidio plugs
+      in as a sidecar for higher recall (names, locations, organisations).
+      Custom regex rules let you teach the redactor about your own identifiers.
+    </p>
+    <p>
+      Full coverage in <a href="pii.html">PII detection</a>.
+    </p>
+
+    <h2>Placeholder integrity</h2>
+    <p>
+      Each translation round trip has a hard invariant: every
+      <code>&lt;adaptiveapi id="TAG_n"/&gt;</code> tag emitted into the source must
+      reappear exactly once in the translator output. If it does not, the
+      pipeline falls back to the source text, increments the
+      <code>adaptiveapi_placeholder_integrity_failures_total</code> counter, and
+      logs the failure. Alert above 0.5% over your observation window.
+    </p>
+
+    <div class="docs-pager">
+      <a class="pager-prev" href="pii.html">
+        <span class="pager-label">Previous</span>
+        <span class="pager-title">PII detection</span>
+      </a>
+      <a class="pager-next" href="deployment.html">
+        <span class="pager-label">Next</span>
+        <span class="pager-title">Deployment <span aria-hidden="true">→</span></span>
+      </a>
+    </div>
+  </main>
+
+</div>
+
+<footer class="footer">
+  <div class="container footer-inner">
+    <div class="footer-brand">
+      <span class="brand-mark" aria-hidden="true">◆</span>
+      <span class="brand-name">adaptive<em>api</em></span>
+    </div>
+    <p class="footer-meta">
+      Built on .NET 10, Vue 3, and the official DeepL .NET SDK.<br />
+      Copyright © 2026 Tim Cadenbach. AGPL v3.
+    </p>
+    <div class="footer-links">
+      <a href="https://github.com/DeeJayTC/adaptiveapi">GitHub</a>
+      <a href="https://github.com/DeeJayTC/adaptiveapi/blob/main/LICENSE">License</a>
+      <a href="index.html">Docs</a>
+    </div>
+  </div>
+</footer>
+
+<script src="../assets/script.js" defer></script>
+</body>
+</html>

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using AdaptiveApi.Core.Abstractions;
 using AdaptiveApi.Core.Pipeline;
 using AdaptiveApi.Core.Routing;
@@ -46,6 +47,7 @@ public sealed class DbRuleResolver : IRuleResolver
         var formality = Formality.Default;
         var redactPii = false;
         string? systemContext = null;
+        PiiDetectorSet? piiDetectors = null;
 
         if (!string.IsNullOrEmpty(route.ProxyRuleId))
         {
@@ -60,6 +62,7 @@ public sealed class DbRuleResolver : IRuleResolver
                     formality = f;
                 redactPii = pr.RedactPii;
                 systemContext = pr.SystemContext;
+                if (redactPii) piiDetectors = await ResolveDetectorSetAsync(pr, route.TenantId, ct);
             }
         }
 
@@ -73,7 +76,8 @@ public sealed class DbRuleResolver : IRuleResolver
             ToolArgsDenylist: denylist,
             Formality: formality,
             RedactPii: redactPii,
-            SystemContext: systemContext);
+            SystemContext: systemContext,
+            PiiDetectors: piiDetectors);
     }
 
     private async Task<StyleBinding> ResolveStyleBindingAsync(string? styleRuleId, string tenantId, CancellationToken ct)
@@ -91,6 +95,123 @@ public sealed class DbRuleResolver : IRuleResolver
             .ToListAsync(ct);
 
         return new StyleBinding(sr.Id, sr.DeeplStyleId, instructions);
+    }
+
+    /// Compose a per-route detector set from (a) selected packs minus per-detector
+    /// disables, plus (b) tenant-scoped custom rules. If neither is configured the
+    /// default pack is used so legacy `RedactPii: true` routes keep working.
+    private async Task<PiiDetectorSet> ResolveDetectorSetAsync(ProxyRuleEntity pr, string tenantId, CancellationToken ct)
+    {
+        var packSlugs = ParseStringArray(pr.PiiPackSlugsJson);
+        var customRuleIds = ParseStringArray(pr.PiiRuleIdsJson);
+        var disabled = new HashSet<string>(ParseStringArray(pr.PiiDisabledDetectorsJson), StringComparer.Ordinal);
+
+        if (packSlugs.Count == 0 && customRuleIds.Count == 0)
+            return PiiDetectorSet.Default;
+
+        var detectors = new List<PiiDetector>();
+
+        if (packSlugs.Count > 0)
+        {
+            var packs = await _db.PiiPacks.AsNoTracking()
+                .Where(p => packSlugs.Contains(p.Slug))
+                .OrderBy(p => p.Ordinal)
+                .ToListAsync(ct);
+
+            foreach (var pack in packs)
+            {
+                foreach (var det in PiiDetectorSerializer.Deserialize(pack.DetectorsJson))
+                {
+                    var key = $"{pack.Slug}:{det.Kind}";
+                    if (disabled.Contains(key)) continue;
+                    if (TryCompile(det, out var compiled))
+                        detectors.Add(compiled);
+                }
+            }
+        }
+        else
+        {
+            // Custom-only routes still need a base set so the user gets the obvious
+            // protections (email, card, …) without re-declaring them.
+            detectors.AddRange(BuiltinDetectors.Default);
+        }
+
+        if (customRuleIds.Count > 0)
+        {
+            var rules = await _db.PiiRules.AsNoTracking()
+                .Where(r => r.TenantId == tenantId && r.Enabled && customRuleIds.Contains(r.Id))
+                .ToListAsync(ct);
+
+            foreach (var rule in rules)
+            {
+                if (TryCompileCustomRule(rule, out var compiled))
+                    detectors.Add(compiled);
+            }
+        }
+
+        return detectors.Count > 0 ? new PiiDetectorSet(detectors) : PiiDetectorSet.Default;
+    }
+
+    private static bool TryCompile(PiiDetectorJson json, out PiiDetector detector)
+    {
+        try
+        {
+            detector = PiiDetectorSerializer.ToDetector(json);
+            return true;
+        }
+        catch (RegexParseException)
+        {
+            detector = default!;
+            return false;
+        }
+    }
+
+    private static bool TryCompileCustomRule(PiiRuleEntity rule, out PiiDetector detector)
+    {
+        try
+        {
+            var opts = RegexOptions.Compiled | RegexOptions.CultureInvariant;
+            var luhn = false;
+            if (!string.IsNullOrWhiteSpace(rule.FlagsJson))
+            {
+                using var doc = JsonDocument.Parse(rule.FlagsJson);
+                var root = doc.RootElement;
+                if (root.ValueKind == JsonValueKind.Object)
+                {
+                    if (root.TryGetProperty("caseInsensitive", out var ci) && ci.ValueKind == JsonValueKind.True)
+                        opts |= RegexOptions.IgnoreCase;
+                    if (root.TryGetProperty("multiline", out var ml) && ml.ValueKind == JsonValueKind.True)
+                        opts |= RegexOptions.Multiline;
+                    if (root.TryGetProperty("luhnValidate", out var lv) && lv.ValueKind == JsonValueKind.True)
+                        luhn = true;
+                }
+            }
+            detector = new PiiDetector(rule.Name, rule.Replacement, new Regex(rule.Pattern, opts), luhn);
+            return true;
+        }
+        catch (Exception)
+        {
+            detector = default!;
+            return false;
+        }
+    }
+
+    private static List<string> ParseStringArray(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return new List<string>();
+        try
+        {
+            var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.ValueKind != JsonValueKind.Array) return new List<string>();
+            var list = new List<string>();
+            foreach (var v in doc.RootElement.EnumerateArray())
+                if (v.ValueKind == JsonValueKind.String) list.Add(v.GetString()!);
+            return list;
+        }
+        catch (JsonException)
+        {
+            return new List<string>();
+        }
     }
 
     private static (Allowlist Req, Allowlist Resp) ApplyAllowlistOverrides(
@@ -152,10 +273,10 @@ public sealed class DbRuleResolver : IRuleResolver
             };
             var patterns = new[]
             {
-                new System.Text.RegularExpressions.Regex("^.*_id$", System.Text.RegularExpressions.RegexOptions.IgnoreCase),
-                new System.Text.RegularExpressions.Regex("^.*_code$", System.Text.RegularExpressions.RegexOptions.IgnoreCase),
-                new System.Text.RegularExpressions.Regex("^.*Id$"),
-                new System.Text.RegularExpressions.Regex("^.*Code$"),
+                new Regex("^.*_id$", RegexOptions.IgnoreCase),
+                new Regex("^.*_code$", RegexOptions.IgnoreCase),
+                new Regex("^.*Id$"),
+                new Regex("^.*Code$"),
             };
             return new ToolArgsDenylist(defaultKeys.Concat(extraKeys), patterns);
         }

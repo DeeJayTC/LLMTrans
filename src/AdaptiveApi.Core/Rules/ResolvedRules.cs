@@ -17,7 +17,8 @@ public sealed record ResolvedRules(
     ToolArgsDenylist ToolArgsDenylist,
     Formality Formality,
     bool RedactPii = false,
-    string? SystemContext = null);
+    string? SystemContext = null,
+    PiiDetectorSet? PiiDetectors = null);
 
 public sealed record StyleBinding(
     string? StyleRuleId,

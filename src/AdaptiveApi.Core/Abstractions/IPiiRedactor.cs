@@ -11,4 +11,11 @@ public interface IPiiRedactor
     /// `Placeholder` entries whose `Original` is the opaque substitute
     /// (`[redacted-email]`, …) to be reinjected post-translation.
     Task<PiiRedactor.Result> RedactAsync(string input, CancellationToken ct = default);
+
+    /// Detect + replace PII using an explicit detector set. Implementations that
+    /// support per-call detector composition (regex) override this. Implementations
+    /// that don't (Presidio, ML-based) ignore the parameter and fall back to their
+    /// default behaviour.
+    Task<PiiRedactor.Result> RedactAsync(string input, PiiDetectorSet? detectors, CancellationToken ct = default)
+        => RedactAsync(input, ct);
 }

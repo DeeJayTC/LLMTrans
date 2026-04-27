@@ -84,4 +84,71 @@ export type ProxyRule = {
   denylistJson: string | null;
   formality: string | null;
   priority: number;
+  redactPii?: boolean;
+  systemContext?: string | null;
+  piiPackSlugsJson?: string | null;
+  piiRuleIdsJson?: string | null;
+  piiDisabledDetectorsJson?: string | null;
+};
+
+export type PiiDetectorSpec = {
+  kind: string;
+  pattern: string;
+  replacement: string;
+  flags?: string[];
+  luhnValidate: boolean;
+};
+
+export type PiiPack = {
+  slug: string;
+  name: string;
+  description: string;
+  isBuiltin: boolean;
+  ordinal: number;
+  detectors: PiiDetectorSpec[];
+};
+
+export type PiiRuleFlags = {
+  caseInsensitive: boolean;
+  multiline: boolean;
+  luhnValidate: boolean;
+};
+
+export type PiiRule = {
+  id: string;
+  tenantId: string;
+  name: string;
+  description: string | null;
+  pattern: string;
+  replacement: string;
+  flags: PiiRuleFlags;
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type PiiTestRequest = {
+  text: string;
+  packSlugs?: string[];
+  ruleIds?: string[];
+  disabledDetectors?: string[];
+  adHocPattern?: string;
+  adHocReplacement?: string;
+  adHocKind?: string;
+  adHocFlags?: PiiRuleFlags;
+  tenantId?: string;
+};
+
+export type PiiTestMatch = {
+  kind: string;
+  replacement: string;
+  start: number;
+  length: number;
+  match: string;
+};
+
+export type PiiTestResponse = {
+  redactedText: string;
+  matches: PiiTestMatch[];
+  errors: string[];
 };

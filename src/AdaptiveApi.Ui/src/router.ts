@@ -20,6 +20,8 @@ const routes: RouteRecordRaw[] = [
     meta: { title: 'Style rule' } },
   { path: '/proxy-rules', name: 'proxy-rules', component: () => import('./pages/ProxyRules.vue'),
     meta: { title: 'Proxy rules' } },
+  { path: '/pii-rules', name: 'pii-rules', component: () => import('./pages/PiiRules.vue'),
+    meta: { title: 'PII rules' } },
   { path: '/playground', name: 'playground', component: () => import('./pages/Playground.vue'),
     meta: { title: 'Playground' } },
   { path: '/logs', name: 'logs', component: () => import('./pages/Logs.vue'),

@@ -120,6 +120,8 @@ AdminEndpoints.Map(adminGroup);
 GlossaryEndpoints.Map(adminGroup);
 StyleRuleEndpoints.Map(adminGroup);
 ProxyRuleEndpoints.Map(adminGroup);
+PiiPackEndpoints.Map(adminGroup);
+PiiRuleEndpoints.Map(adminGroup);
 McpEndpoints.Map(adminGroup);
 DocumentTranslationEndpoints.Map(adminGroup);
 AuditEndpoints.Map(adminGroup);

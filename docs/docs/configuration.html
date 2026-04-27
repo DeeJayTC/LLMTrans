@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Configuration. AdaptiveAPI documentation.</title>
+<meta name="description" content="Every AdaptiveAPI environment variable and appsettings key, with defaults and where it gets read." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../assets/styles.css" />
+<link rel="stylesheet" href="../assets/docs.css" />
+<link rel="icon" type="image/svg+xml" href="../assets/favicon.svg" />
+</head>
+<body>
+
+<header class="nav">
+  <div class="nav-inner">
+    <a href="../index.html" class="brand">
+      <span class="brand-mark" aria-hidden="true">◆</span>
+      <span class="brand-name">adaptive<em>api</em></span>
+    </a>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="../index.html#how">How it works</a>
+      <a href="../index.html#features">Features</a>
+      <a href="index.html">Docs</a>
+      <a href="../index.html#faq">FAQ</a>
+    </nav>
+    <div class="nav-actions">
+      <button class="theme-toggle" type="button" aria-label="Toggle theme" data-theme-toggle>
+        <span class="theme-icon-light" aria-hidden="true">☀</span>
+        <span class="theme-icon-dark" aria-hidden="true">☾</span>
+      </button>
+      <a class="btn btn-ghost" href="https://github.com/DeeJayTC/adaptiveapi">GitHub</a>
+      <a class="btn btn-primary" href="index.html">Back to overview <span aria-hidden="true">→</span></a>
+    </div>
+  </div>
+</header>
+
+<div class="docs-shell">
+
+  <aside class="docs-side" aria-label="Documentation navigation">
+    <h4>Start here</h4>
+    <ul>
+      <li><a href="index.html">Overview</a></li>
+      <li><a href="getting-started.html">Getting started</a></li>
+      <li><a href="authentication.html">Authentication</a></li>
+      <li><a href="routes.html">Routes and tokens</a></li>
+    </ul>
+    <h4>Integrate</h4>
+    <ul>
+      <li><a href="llm-providers.html">LLM providers</a></li>
+      <li><a href="mcp.html">MCP servers</a></li>
+      <li><a href="generic-json.html">Generic JSON API</a></li>
+    </ul>
+    <h4>Features</h4>
+    <ul>
+      <li><a href="style-rules.html">Style rules &amp; customization</a></li>
+      <li><a href="pii.html">PII detection</a></li>
+      <li><a href="translation.html">Translation pipeline</a></li>
+    </ul>
+    <h4>Operate</h4>
+    <ul>
+      <li><a href="deployment.html">Deployment</a></li>
+      <li><a href="configuration.html" class="is-active">Configuration</a></li>
+    </ul>
+  </aside>
+
+  <main class="docs-main">
+    <span class="docs-eyebrow">Reference</span>
+    <h1><em>Configuration</em></h1>
+    <p class="docs-lede">
+      Driven by <code>appsettings.json</code>, environment variables (with the
+      <code>__</code> separator), or a Kubernetes ConfigMap. The same keys work
+      across all three.
+    </p>
+
+    <h2>Database</h2>
+    <table>
+      <thead><tr><th>Key</th><th>Default</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><code>Database__Provider</code></td><td><code>Sqlite</code></td><td>Also <code>Postgres</code>, <code>SqlServer</code>.</td></tr>
+        <tr><td><code>Database__Path</code></td><td><code>adaptiveapi.db</code></td><td>SQLite only.</td></tr>
+        <tr><td><code>Database__ConnectionString</code></td><td><em>none</em></td><td>Required for Postgres and SQL Server.</td></tr>
+      </tbody>
+    </table>
+
+    <h2>Translators</h2>
+    <table>
+      <thead><tr><th>Key</th><th>Default</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><code>Translators__Default</code></td><td><code>passthrough</code></td><td>Also <code>deepl</code>, <code>llm</code>.</td></tr>
+        <tr><td><code>Translators__DeepL__ApiKey</code></td><td><em>none</em></td><td>Required for <code>deepl</code>.</td></tr>
+        <tr><td><code>Translators__DeepL__BaseUrl</code></td><td><code>https://api.deepl.com/</code></td><td>Use <code>https://api-free.deepl.com/</code> for free tier.</td></tr>
+        <tr><td><code>Translators__Llm__ApiKey</code></td><td><em>none</em></td><td>Required for <code>llm</code>.</td></tr>
+        <tr><td><code>Translators__Llm__BaseUrl</code></td><td><code>https://api.openai.com/</code></td><td>Any OpenAI-compatible endpoint.</td></tr>
+        <tr><td><code>Translators__Llm__Model</code></td><td><code>gpt-4o-mini</code></td><td>Translator model.</td></tr>
+      </tbody>
+    </table>
+
+    <h2>MCP</h2>
+    <table>
+      <thead><tr><th>Key</th><th>Default</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><code>Mcp__CatalogFile</code></td><td><code>catalog/mcp-servers.json</code></td><td>Curated server list shown in admin UI.</td></tr>
+      </tbody>
+    </table>
+
+    <h2>Public surface</h2>
+    <table>
+      <thead><tr><th>Key</th><th>Default</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><code>PublicBaseUrl</code></td><td><code>http://localhost:8080</code></td><td>External URL of the API. Used in copy-paste snippets.</td></tr>
+        <tr><td><code>ASPNETCORE_URLS</code></td><td><code>http://+:8080</code></td><td>Bind address.</td></tr>
+        <tr><td><code>ASPNETCORE_ENVIRONMENT</code></td><td><code>Development</code></td><td>Use <code>Production</code> in prod.</td></tr>
+      </tbody>
+    </table>
+
+    <h2>Development helpers</h2>
+    <table>
+      <thead><tr><th>Key</th><th>Default</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><code>Dev__FixedRouteToken</code></td><td><em>none</em></td><td>Seed a stable route token at startup. Local only.</td></tr>
+      </tbody>
+    </table>
+
+    <h2>PII redactor</h2>
+    <table>
+      <thead><tr><th>Key</th><th>Default</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><code>PiiRedactor__Provider</code></td><td><code>regex</code></td><td>Also <code>presidio</code>.</td></tr>
+        <tr><td><code>PiiRedactor__Presidio__BaseUrl</code></td><td><em>none</em></td><td>Required for <code>presidio</code>.</td></tr>
+      </tbody>
+    </table>
+
+    <h2>Telemetry</h2>
+    <table>
+      <thead><tr><th>Key</th><th>Default</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><code>OTEL_EXPORTER_OTLP_ENDPOINT</code></td><td><em>none</em></td><td>OTLP collector address. Enables spans + metrics export.</td></tr>
+        <tr><td><code>OTEL_SERVICE_NAME</code></td><td><code>adaptiveapi</code></td><td>Service name in traces.</td></tr>
+      </tbody>
+    </table>
+
+    <h2>Worked appsettings.json</h2>
+<pre><code>{
+  <span class="t-str">"Database"</span>: {
+    <span class="t-str">"Provider"</span>: <span class="t-str">"Postgres"</span>,
+    <span class="t-str">"ConnectionString"</span>: <span class="t-str">"Host=postgres;Database=adaptiveapi;Username=adaptiveapi;Password=..."</span>
+  },
+  <span class="t-str">"Translators"</span>: {
+    <span class="t-str">"Default"</span>: <span class="t-str">"deepl"</span>,
+    <span class="t-str">"DeepL"</span>: {
+      <span class="t-str">"ApiKey"</span>: <span class="t-str">"..."</span>,
+      <span class="t-str">"BaseUrl"</span>: <span class="t-str">"https://api.deepl.com/"</span>
+    }
+  },
+  <span class="t-str">"PiiRedactor"</span>: {
+    <span class="t-str">"Provider"</span>: <span class="t-str">"presidio"</span>,
+    <span class="t-str">"Presidio"</span>: { <span class="t-str">"BaseUrl"</span>: <span class="t-str">"http://presidio:5002"</span> }
+  },
+  <span class="t-str">"PublicBaseUrl"</span>: <span class="t-str">"https://adaptiveapi.example.com"</span>
+}</code></pre>
+
+    <h2>Same thing as env vars</h2>
+<pre><code>Database__Provider=Postgres
+Database__ConnectionString=Host=postgres;Database=adaptiveapi;Username=adaptiveapi;Password=...
+Translators__Default=deepl
+Translators__DeepL__ApiKey=...
+PiiRedactor__Provider=presidio
+PiiRedactor__Presidio__BaseUrl=http://presidio:5002
+PublicBaseUrl=https://adaptiveapi.example.com</code></pre>
+
+    <div class="docs-pager">
+      <a class="pager-prev" href="deployment.html">
+        <span class="pager-label">Previous</span>
+        <span class="pager-title">Deployment</span>
+      </a>
+      <a class="pager-next" href="index.html">
+        <span class="pager-label">Back</span>
+        <span class="pager-title">Documentation overview <span aria-hidden="true">→</span></span>
+      </a>
+    </div>
+  </main>
+
+</div>
+
+<footer class="footer">
+  <div class="container footer-inner">
+    <div class="footer-brand">
+      <span class="brand-mark" aria-hidden="true">◆</span>
+      <span class="brand-name">adaptive<em>api</em></span>
+    </div>
+    <p class="footer-meta">
+      Built on .NET 10, Vue 3, and the official DeepL .NET SDK.<br />
+      Copyright © 2026 Tim Cadenbach. AGPL v3.
+    </p>
+    <div class="footer-links">
+      <a href="https://github.com/DeeJayTC/adaptiveapi">GitHub</a>
+      <a href="https://github.com/DeeJayTC/adaptiveapi/blob/main/LICENSE">License</a>
+      <a href="index.html">Docs</a>
+    </div>
+  </div>
+</footer>
+
+<script src="../assets/script.js" defer></script>
+</body>
+</html>

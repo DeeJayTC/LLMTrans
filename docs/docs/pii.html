@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>PII detection. AdaptiveAPI documentation.</title>
+<meta name="description" content="Detect and redact personal data before the upstream model sees a single byte. Built-in regex detectors plus optional Presidio for higher recall." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../assets/styles.css" />
+<link rel="stylesheet" href="../assets/docs.css" />
+<link rel="icon" type="image/svg+xml" href="../assets/favicon.svg" />
+</head>
+<body>
+
+<header class="nav">
+  <div class="nav-inner">
+    <a href="../index.html" class="brand">
+      <span class="brand-mark" aria-hidden="true">◆</span>
+      <span class="brand-name">adaptive<em>api</em></span>
+    </a>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="../index.html#how">How it works</a>
+      <a href="../index.html#features">Features</a>
+      <a href="index.html">Docs</a>
+      <a href="../index.html#faq">FAQ</a>
+    </nav>
+    <div class="nav-actions">
+      <button class="theme-toggle" type="button" aria-label="Toggle theme" data-theme-toggle>
+        <span class="theme-icon-light" aria-hidden="true">☀</span>
+        <span class="theme-icon-dark" aria-hidden="true">☾</span>
+      </button>
+      <a class="btn btn-ghost" href="https://github.com/DeeJayTC/adaptiveapi">GitHub</a>
+      <a class="btn btn-primary" href="translation.html">Next <span aria-hidden="true">→</span></a>
+    </div>
+  </div>
+</header>
+
+<div class="docs-shell">
+
+  <aside class="docs-side" aria-label="Documentation navigation">
+    <h4>Start here</h4>
+    <ul>
+      <li><a href="index.html">Overview</a></li>
+      <li><a href="getting-started.html">Getting started</a></li>
+      <li><a href="authentication.html">Authentication</a></li>
+      <li><a href="routes.html">Routes and tokens</a></li>
+    </ul>
+    <h4>Integrate</h4>
+    <ul>
+      <li><a href="llm-providers.html">LLM providers</a></li>
+      <li><a href="mcp.html">MCP servers</a></li>
+      <li><a href="generic-json.html">Generic JSON API</a></li>
+    </ul>
+    <h4>Features</h4>
+    <ul>
+      <li><a href="style-rules.html">Style rules &amp; customization</a></li>
+      <li><a href="pii.html" class="is-active">PII detection</a></li>
+      <li><a href="translation.html">Translation pipeline</a></li>
+    </ul>
+    <h4>Operate</h4>
+    <ul>
+      <li><a href="deployment.html">Deployment</a></li>
+      <li><a href="configuration.html">Configuration</a></li>
+    </ul>
+  </aside>
+
+  <main class="docs-main">
+    <span class="docs-eyebrow">Features</span>
+    <h1>PII <em>detection</em></h1>
+    <p class="docs-lede">
+      Detect and redact personal data before the upstream model sees a single
+      byte. Built-in regex detectors cover the high-frequency cases. Microsoft
+      Presidio plugs in as a sidecar for higher recall. Custom rules let you
+      teach the redactor about your own identifiers.
+    </p>
+
+    <h2>The threat model</h2>
+    <p>
+      PII makes its way into LLM prompts almost no matter what you do. A
+      customer pastes a support ticket. An agent forwards an email thread. A
+      chat user mentions their email or a credit card number while describing a
+      problem. Once those bytes are in the model's context, you have lost
+      control: they show up in logs, in vendor-side caches, in the model's
+      response if it decides to repeat them back, and in any audit you do not
+      own.
+    </p>
+    <p>
+      AdaptiveAPI's redactor runs <em>before</em> translation and
+      <em>before</em> the upstream call. The model never sees the original
+      spans. Since it never saw them, it cannot emit them.
+    </p>
+
+    <h2>How it fires</h2>
+    <ol>
+      <li>Inbound request arrives. Body parsed.</li>
+      <li>Detector runs over every translatable string field.</li>
+      <li>Each match is replaced with an opaque substitute (<code>[redacted-email]</code>, <code>[redacted-card]</code>, etc.).</li>
+      <li>Translation pipeline runs on the redacted text.</li>
+      <li>Upstream receives the redacted, translated request.</li>
+      <li>Response comes back, is translated, and is returned to the caller. The substitutes are kept verbatim. No de-redaction step. The original PII never leaves AdaptiveAPI's process memory.</li>
+    </ol>
+
+    <h2>Enabling it</h2>
+    <p>Set <code>redactPii: true</code> on the route's proxy rule:</p>
+<pre><code>{
+  <span class="t-str">"redactPii"</span>: <span class="t-key">true</span>
+}</code></pre>
+    <p>
+      Or override per request with <code>X-AdaptiveApi-Redact-Pii: true</code>.
+      The header is stripped before the upstream call, so it never leaks into
+      the model context.
+    </p>
+
+    <h2>Built-in detectors</h2>
+    <p>The default regex set covers the high-frequency cases. All detectors are conservative: they match formats with strong structure, not free text.</p>
+
+    <table>
+      <thead>
+        <tr><th>Detector</th><th>Match</th><th>Replacement</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>email</code></td><td>RFC-5322 simplified</td><td><code>[redacted-email]</code></td></tr>
+        <tr><td><code>creditcard</code></td><td>13 to 19 digits, Luhn-validated</td><td><code>[redacted-card]</code></td></tr>
+        <tr><td><code>ssn-us</code></td><td><code>NNN-NN-NNNN</code> with valid prefix</td><td><code>[redacted-ssn]</code></td></tr>
+        <tr><td><code>iban</code></td><td>Country-prefixed IBAN, mod-97 checksum</td><td><code>[redacted-iban]</code></td></tr>
+        <tr><td><code>ipv4</code></td><td>Dotted quad, valid octets</td><td><code>[redacted-ip]</code></td></tr>
+        <tr><td><code>phone</code></td><td>E.164 plus common national formats</td><td><code>[redacted-phone]</code></td></tr>
+      </tbody>
+    </table>
+
+    <h2>Higher recall with Presidio</h2>
+    <p>
+      For names, locations, organisations, driver licences, NHS numbers, and the
+      long tail of locale-specific identifiers, Microsoft Presidio Analyzer
+      plugs in as an HTTP sidecar.
+    </p>
+
+<pre><code>PiiRedactor__Provider=presidio
+PiiRedactor__Presidio__BaseUrl=http://presidio:5002</code></pre>
+
+    <p>
+      AdaptiveAPI sends the body to the analyzer, takes the returned span list,
+      and applies replacements in the same way the regex redactor does. If
+      Presidio is unreachable, the redactor falls back to the regex set, so a
+      temporary sidecar outage never opens the door for PII to reach the
+      upstream.
+    </p>
+
+    <h2>Custom rules</h2>
+    <p>
+      Real systems carry identifiers the built-in detectors do not know about.
+      Internal customer IDs. Product SKUs that look like names. Reservation codes,
+      order numbers, internal ticket IDs. AdaptiveAPI lets you teach the
+      redactor about them.
+    </p>
+
+    <h3>Shape of a custom rule</h3>
+    <p>A custom rule has four parts:</p>
+    <ul>
+      <li><code>name</code>. Human-readable label (<code>customer-id</code>, <code>internal-ticket</code>).</li>
+      <li><code>pattern</code>. A .NET regular expression. Anchored, with named groups if you want partial replacement.</li>
+      <li><code>replacement</code>. The opaque substitute (<code>[redacted-customer-id]</code>).</li>
+      <li><code>flags</code>. Optional. <code>caseInsensitive</code>, <code>multiline</code>, etc.</li>
+    </ul>
+
+<pre><code>{
+  <span class="t-str">"name"</span>: <span class="t-str">"customer-id"</span>,
+  <span class="t-str">"pattern"</span>: <span class="t-str">"\\bCUST-\\d{6,8}\\b"</span>,
+  <span class="t-str">"replacement"</span>: <span class="t-str">"[redacted-customer-id]"</span>,
+  <span class="t-str">"flags"</span>: [<span class="t-str">"caseInsensitive"</span>]
+}</code></pre>
+
+    <h3>Where they go</h3>
+    <p>
+      Today, custom rules live in route configuration alongside the rest of the
+      proxy rule. The admin UI is gaining a dedicated PII page that surfaces
+      premade regex packs (US, EU, UK, financial, healthcare), the rule editor,
+      and per-tenant rule libraries that bind to routes by reference.
+    </p>
+
+    <blockquote>
+      <p>
+        <strong>Tip.</strong> Test custom rules against real-shaped data before
+        binding them to a route. A loose pattern (<code>\\d{6}</code>) will
+        redact phone numbers, postal codes, prices, and version strings along
+        with the customer IDs you wanted. Anchor with surrounding context
+        (<code>\\bCUST-</code>, <code>\\bACME-</code>) and validate with the
+        admin UI's regex tester.
+      </p>
+    </blockquote>
+
+    <h2>What does not get redacted</h2>
+    <p>The redactor only runs on translatable string fields. By design, it does not touch:</p>
+    <ul>
+      <li>JSON keys.</li>
+      <li>Identifiers in the proxy-rule denylist (<code>id</code>, <code>uuid</code>, <code>email</code> as a key, etc.).</li>
+      <li>URL paths and query strings on the wire.</li>
+      <li>Headers, including <code>Authorization</code>.</li>
+      <li>Content inside placeholder spans (code blocks, URLs, IDs already wrapped).</li>
+    </ul>
+    <p>
+      That keeps machine-readable parts of your payload working while still
+      catching PII inside human-text content.
+    </p>
+
+    <h2>Audit and metrics</h2>
+    <p>
+      Every redaction event is recorded as audit metadata: the detector that
+      fired, the count of matches, the replacement label. The original spans are
+      <em>never</em> logged. The Prometheus metric
+      <code>adaptiveapi_pii_redactions_total</code> is labelled by detector and
+      route, so dashboards can show which routes carry the most sensitive
+      traffic.
+    </p>
+
+    <h2>Combining with style rules and glossaries</h2>
+    <p>
+      PII detection runs first, before glossary substitution and before style
+      rules apply. That ordering matters: glossary terms cannot accidentally
+      contain redacted spans, and style rules cannot leak the original PII into
+      a custom instruction.
+    </p>
+
+    <div class="docs-pager">
+      <a class="pager-prev" href="style-rules.html">
+        <span class="pager-label">Previous</span>
+        <span class="pager-title">Style rules &amp; customization</span>
+      </a>
+      <a class="pager-next" href="translation.html">
+        <span class="pager-label">Next</span>
+        <span class="pager-title">Translation pipeline <span aria-hidden="true">→</span></span>
+      </a>
+    </div>
+  </main>
+
+</div>
+
+<footer class="footer">
+  <div class="container footer-inner">
+    <div class="footer-brand">
+      <span class="brand-mark" aria-hidden="true">◆</span>
+      <span class="brand-name">adaptive<em>api</em></span>
+    </div>
+    <p class="footer-meta">
+      Built on .NET 10, Vue 3, and the official DeepL .NET SDK.<br />
+      Copyright © 2026 Tim Cadenbach. AGPL v3.
+    </p>
+    <div class="footer-links">
+      <a href="https://github.com/DeeJayTC/adaptiveapi">GitHub</a>
+      <a href="https://github.com/DeeJayTC/adaptiveapi/blob/main/LICENSE">License</a>
+      <a href="index.html">Docs</a>
+    </div>
+  </div>
+</footer>
+
+<script src="../assets/script.js" defer></script>
+</body>
+</html>
