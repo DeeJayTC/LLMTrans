@@ -14,6 +14,7 @@ namespace AdaptiveApi.Plugins.SDK.Hooks;
 /// <param name="UserLanguage">User-facing language code (input direction source / output direction target).</param>
 /// <param name="LlmLanguage">Upstream LLM language code (input direction target / output direction source).</param>
 /// <param name="Direction">Direction mode for the route ("Bidirectional" / "RequestOnly" / "ResponseOnly" / "Off").</param>
+/// <param name="IsStreaming">True when the response is server-sent events / chunked. <see cref="IAiCallHook.AfterAsync"/> body inspection is unsupported in this case — reading the body would starve the client.</param>
 /// <param name="Properties">Free-form bag for plugins to share state across hook points within a single request. Keys are plugin-namespaced strings.</param>
 public sealed record PipelineHookContext(
     HttpContext HttpContext,
@@ -23,4 +24,5 @@ public sealed record PipelineHookContext(
     string UserLanguage,
     string LlmLanguage,
     string Direction,
+    bool IsStreaming,
     IDictionary<string, object?> Properties);

@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <!--
+      The example plugin's assembly name starts with `AdaptiveApi.` so the
+      host's plugin loader picks it up when the DLL is dropped next to the
+      API binary. See deploy/README.md for the volume-mount path on docker
+      compose.
+    -->
+    <AssemblyName>AdaptiveApi.Plugins.SamplePlugin</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\AdaptiveApi.Plugins.SDK\AdaptiveApi.Plugins.SDK.csproj" />
+  </ItemGroup>
+
+</Project>

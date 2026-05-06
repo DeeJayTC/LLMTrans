@@ -57,6 +57,84 @@ public static class PiiSchemaUpgrader
             );
             CREATE INDEX IF NOT EXISTS IX_pii_rules_TenantId ON pii_rules (TenantId);
             """, ct);
+
+        // plugin_settings table came in with the plugin SDK. Existing pre-plugin
+        // databases need it created on upgrade (EnsureCreated only acts on
+        // first-run empty databases). The Enabled column was added later still,
+        // so an ALTER guards the in-between case.
+        await EnsureTableAsync(conn, "plugin_settings", """
+            CREATE TABLE IF NOT EXISTS plugin_settings (
+                TenantId      TEXT NOT NULL,
+                PluginId      TEXT NOT NULL,
+                SettingsJson  TEXT NOT NULL,
+                Enabled       INTEGER NOT NULL DEFAULT 1,
+                UpdatedAt     TEXT NOT NULL,
+                PRIMARY KEY (TenantId, PluginId)
+            );
+            """, ct);
+        await EnsureColumnAsync(conn, "plugin_settings", "Enabled", "INTEGER NOT NULL DEFAULT 1", ct);
+
+        // RouteProfile bundles glossary + styles + proxy rule into a single
+        // named row a route can opt into. New table + new column on routes.
+        await EnsureTableAsync(conn, "route_profiles", """
+            CREATE TABLE IF NOT EXISTS route_profiles (
+                Id                    TEXT NOT NULL PRIMARY KEY,
+                TenantId              TEXT NOT NULL,
+                Name                  TEXT NOT NULL,
+                Description           TEXT,
+                GlossaryId            TEXT,
+                RequestStyleRuleId    TEXT,
+                ResponseStyleRuleId   TEXT,
+                ProxyRuleId           TEXT,
+                CreatedAt             TEXT NOT NULL,
+                UpdatedAt             TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS IX_route_profiles_TenantId ON route_profiles (TenantId);
+            """, ct);
+        await EnsureColumnAsync(conn, "routes", "ProfileId", "TEXT", ct);
+
+        // request_rules: tenant-managed regex rules that fire on every proxied
+        // request without a C# plugin. Built-in hook reads enabled rows in
+        // priority order; see AdaptiveApi.Core.RequestRules.
+        await EnsureTableAsync(conn, "request_rules", """
+            CREATE TABLE IF NOT EXISTS request_rules (
+                Id              TEXT NOT NULL PRIMARY KEY,
+                TenantId        TEXT NOT NULL,
+                RouteId         TEXT,
+                Name            TEXT NOT NULL,
+                Description     TEXT,
+                Scope           TEXT NOT NULL DEFAULT 'request-body',
+                HeaderName      TEXT,
+                Pattern         TEXT NOT NULL,
+                FlagsJson       TEXT,
+                Action          TEXT NOT NULL DEFAULT 'log',
+                BlockStatus     INTEGER,
+                ActionPayload   TEXT,
+                ActionHeader    TEXT,
+                Priority        INTEGER NOT NULL DEFAULT 0,
+                Enabled         INTEGER NOT NULL DEFAULT 1,
+                CreatedAt       TEXT NOT NULL,
+                UpdatedAt       TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS IX_request_rules_TenantEnabled
+                ON request_rules (TenantId, Enabled, Priority);
+            CREATE INDEX IF NOT EXISTS IX_request_rules_RouteId
+                ON request_rules (RouteId);
+            """, ct);
+
+        // secrets: at-rest-encrypted blobs, AES-GCM. Plaintext never lives
+        // in the row. See AdaptiveApi.Infrastructure.Secrets for the crypto
+        // framing.
+        await EnsureTableAsync(conn, "secrets", """
+            CREATE TABLE IF NOT EXISTS secrets (
+                Key         TEXT NOT NULL PRIMARY KEY,
+                Ciphertext  BLOB NOT NULL,
+                Nonce       BLOB NOT NULL,
+                Tag         BLOB NOT NULL,
+                KeyVersion  INTEGER NOT NULL DEFAULT 1,
+                UpdatedAt   TEXT NOT NULL
+            );
+            """, ct);
     }
 
     private static async Task EnsureColumnAsync(System.Data.Common.DbConnection conn,

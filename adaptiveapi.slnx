@@ -18,4 +18,7 @@
     <Project Path="tests/AdaptiveApi.Core.Tests/AdaptiveApi.Core.Tests.csproj" />
     <Project Path="tests/AdaptiveApi.Integration.Tests/AdaptiveApi.Integration.Tests.csproj" />
   </Folder>
+  <Folder Name="/examples/">
+    <Project Path="examples/sample-plugin/AdaptiveApi.Plugins.SamplePlugin.csproj" />
+  </Folder>
 </Solution>

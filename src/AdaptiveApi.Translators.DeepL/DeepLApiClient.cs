@@ -24,12 +24,15 @@ public sealed class DeepLApiClient
     };
 
     private readonly IHttpClientFactory _httpFactory;
-    private readonly IOptions<DeepLOptions> _options;
+    // IOptionsMonitor (vs IOptions) so the post-configure secret-store hook
+    // is re-applied whenever the monitor cache is invalidated. Lets the admin
+    // UI rotate the API key without a process restart.
+    private readonly IOptionsMonitor<DeepLOptions> _options;
     private readonly ILogger<DeepLApiClient> _log;
 
     public DeepLApiClient(
         IHttpClientFactory httpFactory,
-        IOptions<DeepLOptions> options,
+        IOptionsMonitor<DeepLOptions> options,
         ILogger<DeepLApiClient> log)
     {
         _httpFactory = httpFactory;
@@ -71,7 +74,7 @@ public sealed class DeepLApiClient
 
     private HttpClient CreateClient()
     {
-        var apiKey = _options.Value.ApiKey
+        var apiKey = _options.CurrentValue.ApiKey
             ?? throw new InvalidOperationException("DeepL API key not configured");
 
         var http = _httpFactory.CreateClient("deepl");
@@ -82,7 +85,7 @@ public sealed class DeepLApiClient
 
     private Uri BaseUri()
     {
-        var baseUrl = _options.Value.BaseUrl;
+        var baseUrl = _options.CurrentValue.BaseUrl;
         if (string.IsNullOrWhiteSpace(baseUrl)) baseUrl = "https://api.deepl.com/";
         if (!baseUrl.EndsWith('/')) baseUrl += "/";
         return new Uri(baseUrl);

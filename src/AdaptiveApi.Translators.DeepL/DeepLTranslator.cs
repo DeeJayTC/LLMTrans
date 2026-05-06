@@ -26,13 +26,16 @@ namespace AdaptiveApi.Translators.DeepL;
 /// pooled, well-tested).
 public sealed class DeepLTranslator : CoreTranslator, IDisposable
 {
-    private readonly IOptions<DeepLOptions> _options;
+    private readonly IOptionsMonitor<DeepLOptions> _options;
     private readonly ILogger<DeepLTranslator> _log;
-    private readonly Lazy<DeepLClient> _client;
+    // Box the lazy so OnChange can swap it out — the SDK's DeepLClient is
+    // built once with a baked-in API key, so rotation needs a fresh client.
+    private Lazy<DeepLClient> _client;
     private readonly DeepLApiClient? _httpClient;
+    private readonly IDisposable? _changeReg;
 
     public DeepLTranslator(
-        IOptions<DeepLOptions> options,
+        IOptionsMonitor<DeepLOptions> options,
         ILogger<DeepLTranslator> log,
         DeepLApiClient? httpClient = null)
     {
@@ -40,6 +43,10 @@ public sealed class DeepLTranslator : CoreTranslator, IDisposable
         _log = log;
         _client = new Lazy<DeepLClient>(CreateClient, isThreadSafe: true);
         _httpClient = httpClient;
+        // Rebuild on option changes (post-configure runs again when the
+        // monitor cache is invalidated, e.g. after a secret rotation).
+        _changeReg = _options.OnChange(_ =>
+            _client = new Lazy<DeepLClient>(CreateClient, isThreadSafe: true));
     }
 
     public string TranslatorId => "deepl";
@@ -139,7 +146,7 @@ public sealed class DeepLTranslator : CoreTranslator, IDisposable
         if (modelType == "latency_optimized") modelType = "quality_optimized";
         if (string.IsNullOrEmpty(modelType)) modelType = "quality_optimized";
 
-        var context = !string.IsNullOrEmpty(first.Context) ? first.Context : _options.Value.SystemContext;
+        var context = !string.IsNullOrEmpty(first.Context) ? first.Context : _options.CurrentValue.SystemContext;
         if (!string.IsNullOrEmpty(context) && context.Length > 4000) context = context[..4000];
 
         var request = new TranslateTextRequest
@@ -183,12 +190,12 @@ public sealed class DeepLTranslator : CoreTranslator, IDisposable
 
     private DeepLClient CreateClient()
     {
-        var apiKey = _options.Value.ApiKey
+        var apiKey = _options.CurrentValue.ApiKey
             ?? throw new InvalidOperationException("DeepL API key not configured");
 
-        if (!string.IsNullOrEmpty(_options.Value.BaseUrl))
+        if (!string.IsNullOrEmpty(_options.CurrentValue.BaseUrl))
         {
-            var clientOptions = new DeepLClientOptions { ServerUrl = _options.Value.BaseUrl };
+            var clientOptions = new DeepLClientOptions { ServerUrl = _options.CurrentValue.BaseUrl };
             return new DeepLClient(apiKey, clientOptions);
         }
         return new DeepLClient(apiKey);
@@ -210,7 +217,7 @@ public sealed class DeepLTranslator : CoreTranslator, IDisposable
 
         // Context: use request-level context (from pipeline/streaming accumulation)
         // falling back to the global DeepLOptions.SystemContext. Cap to 4 000 chars.
-        var context = !string.IsNullOrEmpty(r.Context) ? r.Context : _options.Value.SystemContext;
+        var context = !string.IsNullOrEmpty(r.Context) ? r.Context : _options.CurrentValue.SystemContext;
         if (!string.IsNullOrEmpty(context))
             opts.Context = context.Length > 4000 ? context[..4000] : context;
 
@@ -298,6 +305,7 @@ public sealed class DeepLTranslator : CoreTranslator, IDisposable
     public void Dispose()
     {
         if (_client.IsValueCreated) _client.Value.Dispose();
+        _changeReg?.Dispose();
     }
 
     private readonly record struct BatchKey(

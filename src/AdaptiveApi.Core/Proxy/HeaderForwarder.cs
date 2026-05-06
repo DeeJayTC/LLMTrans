@@ -27,8 +27,14 @@ public static class HeaderForwarder
     {
         "X-AdaptiveApi-Target-Lang",
         "X-AdaptiveApi-Source-Lang",
+        "X-AdaptiveApi-Lang",
         "X-AdaptiveApi-Glossary",
+        // X-AdaptiveApi-Style-Rule (legacy combined header) — kept in the
+        // strip-list so old clients don't accidentally forward it upstream,
+        // but no adapter honours it any more. Use the per-direction headers.
         "X-AdaptiveApi-Style-Rule",
+        "X-AdaptiveApi-Request-Style-Rule",
+        "X-AdaptiveApi-Response-Style-Rule",
         "X-AdaptiveApi-Model-Type",
         "X-AdaptiveApi-Translator",
         "X-AdaptiveApi-Mode",

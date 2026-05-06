@@ -110,6 +110,7 @@ public sealed class GenericAdapter : IProviderAdapter
             UserLanguage: route.UserLanguage.Value,
             LlmLanguage: route.LlmLanguage.Value,
             Direction: direction.ToString(),
+            IsStreaming: false,
             Properties: new Dictionary<string, object?>(StringComparer.Ordinal));
 
         // Hook 1/6 — before request translation

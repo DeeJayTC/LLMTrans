@@ -24,6 +24,9 @@ export type Route = {
   responseStyleRuleId: string | null;
   proxyRuleId: string | null;
   configJson: string | null;
+  /** Optional RouteProfile id; bundles glossary + style + proxy defaults.
+   *  Per-route fields above override profile values when set. */
+  profileId: string | null;
 };
 
 export type McpServer = {

@@ -30,20 +30,23 @@ public static class AdminEndpoints
         string UserLanguage, string LlmLanguage, string Direction,
         string? TranslatorId, string? GlossaryId,
         string? RequestStyleRuleId, string? ResponseStyleRuleId,
-        string? ProxyRuleId, string? ConfigJson);
+        string? ProxyRuleId, string? ConfigJson,
+        string? ProfileId);
 
     public sealed record UpdateRouteDto(
         string? UpstreamBaseUrl, string? UserLanguage, string? LlmLanguage,
         string? Direction, string? TranslatorId, string? GlossaryId,
         string? RequestStyleRuleId, string? ResponseStyleRuleId,
-        string? ProxyRuleId, string? ConfigJson);
+        string? ProxyRuleId, string? ConfigJson,
+        string? ProfileId);
 
     public sealed record RouteDto(
         string Id, string TenantId, string Kind, string UpstreamBaseUrl,
         string UserLanguage, string LlmLanguage, string Direction,
         string? TranslatorId, string? GlossaryId,
         string? RequestStyleRuleId, string? ResponseStyleRuleId,
-        string? ProxyRuleId, string? ConfigJson);
+        string? ProxyRuleId, string? ConfigJson,
+        string? ProfileId);
 
     public sealed record IssueTokenResponse(string TokenId, string PlaintextToken);
     public sealed record TokenSummary(string Id, string RouteId, string Prefix, DateTimeOffset CreatedAt, DateTimeOffset? RevokedAt);
@@ -88,6 +91,7 @@ public static class AdminEndpoints
             ResponseStyleRuleId = dto.ResponseStyleRuleId,
             ProxyRuleId = dto.ProxyRuleId,
             ConfigJson = dto.ConfigJson,
+            ProfileId = dto.ProfileId,
             CreatedAt = DateTimeOffset.UtcNow,
         });
         await db.SaveChangesAsync(ct);
@@ -115,6 +119,7 @@ public static class AdminEndpoints
         if (dto.ResponseStyleRuleId is not null) r.ResponseStyleRuleId = dto.ResponseStyleRuleId;
         if (dto.ProxyRuleId is not null) r.ProxyRuleId = dto.ProxyRuleId;
         if (dto.ConfigJson is not null) r.ConfigJson = dto.ConfigJson;
+        if (dto.ProfileId is not null) r.ProfileId = dto.ProfileId;
 
         await db.SaveChangesAsync(ct);
         return Results.Ok(ToDto(r));
@@ -173,5 +178,6 @@ public static class AdminEndpoints
     private static RouteDto ToDto(RouteEntity r) => new(
         r.Id, r.TenantId, r.Kind, r.UpstreamBaseUrl, r.UserLanguage, r.LlmLanguage,
         r.Direction, r.TranslatorId, r.GlossaryId,
-        r.RequestStyleRuleId, r.ResponseStyleRuleId, r.ProxyRuleId, r.ConfigJson);
+        r.RequestStyleRuleId, r.ResponseStyleRuleId, r.ProxyRuleId, r.ConfigJson,
+        r.ProfileId);
 }

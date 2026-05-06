@@ -20,10 +20,13 @@ public sealed class AdaptiveApilator : ITranslator
     };
 
     private readonly IHttpClientFactory _httpFactory;
-    private readonly IOptions<AdaptiveApilatorOptions> _options;
+    // IOptionsMonitor lets the secret-store post-configure refresh the API
+    // key when an admin updates it through the UI; the cache is invalidated
+    // on save (see SecretEndpoints).
+    private readonly IOptionsMonitor<AdaptiveApilatorOptions> _options;
     private readonly ILogger<AdaptiveApilator> _log;
 
-    public AdaptiveApilator(IHttpClientFactory httpFactory, IOptions<AdaptiveApilatorOptions> options, ILogger<AdaptiveApilator> log)
+    public AdaptiveApilator(IHttpClientFactory httpFactory, IOptionsMonitor<AdaptiveApilatorOptions> options, ILogger<AdaptiveApilator> log)
     {
         _httpFactory = httpFactory;
         _options = options;
@@ -85,7 +88,7 @@ public sealed class AdaptiveApilator : ITranslator
         string userJson,
         CancellationToken ct)
     {
-        var max = Math.Max(1, _options.Value.MaxAttempts);
+        var max = Math.Max(1, _options.CurrentValue.MaxAttempts);
         Exception? last = null;
         for (var attempt = 0; attempt < max; attempt++)
         {
@@ -124,14 +127,14 @@ public sealed class AdaptiveApilator : ITranslator
 
     private async Task<string> CallAsync(string systemPrompt, string userJson, CancellationToken ct)
     {
-        var apiKey = _options.Value.ApiKey
+        var apiKey = _options.CurrentValue.ApiKey
             ?? throw new InvalidOperationException("LLM translator API key not configured");
         var http = _httpFactory.CreateClient("llm-translator");
 
         var body = new JsonObject
         {
-            ["model"] = _options.Value.Model,
-            ["temperature"] = _options.Value.Temperature,
+            ["model"] = _options.CurrentValue.Model,
+            ["temperature"] = _options.CurrentValue.Temperature,
             ["response_format"] = new JsonObject { ["type"] = "json_object" },
             ["messages"] = new JsonArray(
                 new JsonObject { ["role"] = "system", ["content"] = systemPrompt },
@@ -139,7 +142,7 @@ public sealed class AdaptiveApilator : ITranslator
         };
 
         using var req = new HttpRequestMessage(HttpMethod.Post,
-            new Uri(new Uri(_options.Value.BaseUrl), "v1/chat/completions"));
+            new Uri(new Uri(_options.CurrentValue.BaseUrl), "v1/chat/completions"));
         req.Headers.TryAddWithoutValidation("Authorization", $"Bearer {apiKey}");
         req.Content = JsonContent.Create(body, options: Opts);
 

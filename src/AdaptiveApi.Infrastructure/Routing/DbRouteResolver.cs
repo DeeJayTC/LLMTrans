@@ -36,6 +36,13 @@ public sealed class DbRouteResolver : IRouteResolver
         var route = await _db.Routes.AsNoTracking().FirstOrDefaultAsync(r => r.Id == token.RouteId, ct);
         if (route is null) return null;
 
+        // Profile is the default for unset bindings; per-route columns win
+        // when present. Single DB hit when no profile is set.
+        RouteProfileEntity? profile = null;
+        if (!string.IsNullOrEmpty(route.ProfileId))
+            profile = await _db.RouteProfiles.AsNoTracking()
+                .FirstOrDefaultAsync(p => p.Id == route.ProfileId, ct);
+
         return new RouteConfig(
             RouteId: route.Id,
             TenantId: route.TenantId,
@@ -45,10 +52,10 @@ public sealed class DbRouteResolver : IRouteResolver
             LlmLanguage: new LanguageCode(route.LlmLanguage),
             Direction: Enum.Parse<DirectionMode>(route.Direction),
             TranslatorId: route.TranslatorId,
-            GlossaryId: route.GlossaryId,
-            RequestStyleRuleId: route.RequestStyleRuleId,
-            ResponseStyleRuleId: route.ResponseStyleRuleId,
-            ProxyRuleId: route.ProxyRuleId,
+            GlossaryId: route.GlossaryId ?? profile?.GlossaryId,
+            RequestStyleRuleId: route.RequestStyleRuleId ?? profile?.RequestStyleRuleId,
+            ResponseStyleRuleId: route.ResponseStyleRuleId ?? profile?.ResponseStyleRuleId,
+            ProxyRuleId: route.ProxyRuleId ?? profile?.ProxyRuleId,
             ConfigJson: route.ConfigJson,
             TranslationMemoryId: route.TranslationMemoryId,
             TranslationMemoryThreshold: route.TranslationMemoryThreshold);

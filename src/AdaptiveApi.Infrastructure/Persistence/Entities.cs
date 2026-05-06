@@ -25,6 +25,13 @@ public sealed class RouteEntity
     /// voice / tone used when talking to the human.
     public string? ResponseStyleRuleId { get; set; }
     public string? ProxyRuleId { get; set; }
+    /// Optional <see cref="RouteProfileEntity"/> that bundles glossary +
+    /// styles + proxy rule defaults so a route doesn't need four FKs set
+    /// individually. Per-route columns above still win when they're set —
+    /// the resolver uses them as overrides over whatever the profile
+    /// supplies. Null means "no profile, use the per-route columns
+    /// directly" (legacy shape).
+    public string? ProfileId { get; set; }
     /// DeepL Translation Memory UUID. Calls flow through the v2 HTTP API when set
     /// because the SDK does not yet expose translation_memory_id.
     public string? TranslationMemoryId { get; set; }
@@ -258,14 +265,17 @@ public sealed class McpCatalogEntity
     public bool Verified { get; set; }
 }
 
-/// Per-(tenant, plugin) settings. Settings JSON is opaque to the host —
-/// schema is the plugin's responsibility. <c>TenantId</c> is "*" for global
-/// settings (the only mode supported in v1).
+/// Per-(tenant, plugin) settings + enable state. Settings JSON is opaque to
+/// the host — schema is the plugin's responsibility. <c>TenantId</c> is "*"
+/// for global settings (the only mode supported in v1). <c>Enabled</c>
+/// defaults to true so a freshly-loaded plugin runs without an explicit
+/// enable; operators flip it via <c>POST /admin/plugins/{id}/disable</c>.
 public sealed class PluginSettingsEntity
 {
     public string TenantId { get; set; } = default!;
     public string PluginId { get; set; } = default!;
     public string SettingsJson { get; set; } = "{}";
+    public bool Enabled { get; set; } = true;
     public DateTimeOffset UpdatedAt { get; set; }
 }
 
@@ -289,4 +299,79 @@ public sealed class AuditEventEntity
     public int IntegrityFailures { get; set; }
     public long DurationMs { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
+}
+
+/// Bundles the glossary + style + proxy + (formality) bindings a route
+/// typically needs into a single named row. Routes opt in via
+/// <see cref="RouteEntity.ProfileId"/>; per-route columns still override
+/// any field they set, so power users keep the escape hatch.
+public sealed class RouteProfileEntity
+{
+    public string Id { get; set; } = default!;
+    public string TenantId { get; set; } = default!;
+    public string Name { get; set; } = default!;
+    public string? Description { get; set; }
+    public string? GlossaryId { get; set; }
+    public string? RequestStyleRuleId { get; set; }
+    public string? ResponseStyleRuleId { get; set; }
+    public string? ProxyRuleId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
+}
+
+/// UI-managed regex rule that runs on every proxied request without writing
+/// a C# plugin. Tenants compose match scope (request body / response body /
+/// header) + a regex with an action (block, replace, set-header, log). The
+/// built-in <c>RequestRuleHook</c> in the Core layer reads enabled rows in
+/// priority order on every request and applies them.
+///
+/// Per-tenant scoping; <c>RouteId</c> binds the rule to a single route, NULL
+/// applies it to every route in the tenant. Enabled rules with the same
+/// priority run in <c>Id</c> order to keep behaviour deterministic.
+public sealed class RequestRuleEntity
+{
+    public string Id { get; set; } = default!;
+    public string TenantId { get; set; } = default!;
+    /// Optional route binding. NULL means the rule applies to every route in
+    /// this tenant; a route id scopes it to that route only.
+    public string? RouteId { get; set; }
+    public string Name { get; set; } = default!;
+    public string? Description { get; set; }
+    /// One of: <c>request-body</c>, <c>response-body</c>, <c>request-header</c>,
+    /// <c>response-header</c>, <c>path</c>.
+    public string Scope { get; set; } = "request-body";
+    /// Header name when <c>Scope</c> is one of the header scopes; otherwise null.
+    public string? HeaderName { get; set; }
+    public string Pattern { get; set; } = default!;
+    /// Regex flags JSON: <c>{ caseInsensitive?: bool, multiline?: bool }</c>.
+    public string? FlagsJson { get; set; }
+    /// One of: <c>block</c>, <c>replace</c>, <c>set-header</c>, <c>log</c>.
+    public string Action { get; set; } = "log";
+    /// HTTP status code returned when <c>Action == "block"</c>. Default 403.
+    public int? BlockStatus { get; set; }
+    /// JSON body returned on block, raw replacement string on replace,
+    /// header value on set-header, or message template on log.
+    public string? ActionPayload { get; set; }
+    /// Header name for <c>set-header</c>.
+    public string? ActionHeader { get; set; }
+    public int Priority { get; set; }
+    public bool Enabled { get; set; } = true;
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
+}
+
+/// At-rest-encrypted secret. The host writes / reads through
+/// <see cref="ISecretStore"/>; raw rows are never returned to the API.
+/// <see cref="Ciphertext"/> + <see cref="Nonce"/> + <see cref="Tag"/> are
+/// AES-GCM components — see SecretCrypto for the framing. The KEK lives
+/// outside the database (env / KMS); swapping it requires re-encrypting
+/// every row, surfaced via <see cref="KeyVersion"/>.
+public sealed class SecretEntity
+{
+    public string Key { get; set; } = default!;
+    public byte[] Ciphertext { get; set; } = Array.Empty<byte>();
+    public byte[] Nonce { get; set; } = Array.Empty<byte>();
+    public byte[] Tag { get; set; } = Array.Empty<byte>();
+    public int KeyVersion { get; set; } = 1;
+    public DateTimeOffset UpdatedAt { get; set; }
 }

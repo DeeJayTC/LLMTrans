@@ -57,7 +57,11 @@ public static class PiiDetectorSerializer
                 }
             }
         }
-        return new PiiDetector(json.Kind, json.Replacement, new Regex(json.Pattern, opts), json.LuhnValidate);
+        // User-supplied pattern → compile through SafeRegex so we get the
+        // ReDoS timeout + shape validation. Built-in packs go through
+        // FromDetector → seeded JSON → here, so they pay the cost too — but
+        // their patterns are audited and easily fit the bounds.
+        return new PiiDetector(json.Kind, json.Replacement, SafeRegex.Compile(json.Pattern, opts), json.LuhnValidate);
     }
 
     /// Convert a runtime detector back to wire format. Used when seeding the

@@ -5,12 +5,14 @@ using AdaptiveApi.Api.Proxy;
 using AdaptiveApi.Core.Abstractions;
 using AdaptiveApi.Core.Plugins;
 using AdaptiveApi.Core.Routing;
+using AdaptiveApi.Api.Secrets;
 using AdaptiveApi.Infrastructure.Audit;
 using AdaptiveApi.Infrastructure.Caching;
 using AdaptiveApi.Infrastructure.Persistence;
 using AdaptiveApi.Infrastructure.Plugins;
 using AdaptiveApi.Infrastructure.Routing;
 using AdaptiveApi.Infrastructure.Rules;
+using AdaptiveApi.Infrastructure.Secrets;
 using AdaptiveApi.Plugins.SDK;
 using AdaptiveApi.Mcp.TranslateApi;
 using AdaptiveApi.Providers.Anthropic;
@@ -22,6 +24,7 @@ using AdaptiveApi.Pii.Presidio;
 using AdaptiveApi.Translators.DeepL;
 using AdaptiveApi.Translators.Llm;
 using AdaptiveApi.Translators.Passthrough;
+using Microsoft.Extensions.Options;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddAdaptiveApiDb();
@@ -39,6 +42,14 @@ builder.Services.AddHttpClient("presidio");
 builder.Services.Configure<DeepLOptions>(builder.Configuration.GetSection("Translators:DeepL"));
 builder.Services.Configure<AdaptiveApilatorOptions>(builder.Configuration.GetSection("Translators:Llm"));
 builder.Services.Configure<PresidioOptions>(builder.Configuration.GetSection("PiiRedactor:Presidio"));
+
+// Encrypted secret store. When AdaptiveApi:Secrets:Kek is set the DB-backed
+// store is active and translator keys can come from it; otherwise the
+// fallback resolves to env config only. The post-configure hooks below
+// override DeepL / LLM ApiKey with the stored value when present.
+builder.Services.AddScoped<ISecretStore, DbSecretStore>();
+builder.Services.AddSingleton<IPostConfigureOptions<DeepLOptions>, DeepLOptionsPostConfigure>();
+builder.Services.AddSingleton<IPostConfigureOptions<AdaptiveApilatorOptions>, AdaptiveApilatorOptionsPostConfigure>();
 
 builder.Services.AddSingleton<IPiiRedactor>(sp =>
 {
@@ -80,7 +91,17 @@ builder.Services.AddLogging();
 
 var authMode = AuthSetup.Configure(builder);
 
-var discovered = PluginLoader.Discover();
+// Build a bootstrap logger from the configuration so plugin discovery
+// warnings (missing deps, ctor mismatches, anonymous-endpoint opt-in) reach
+// the same sinks the app uses. We can't use builder.Services here without
+// building a throwaway provider, so we route through Console explicitly.
+using var bootstrapLoggerFactory = LoggerFactory.Create(b =>
+{
+    b.AddConfiguration(builder.Configuration.GetSection("Logging"));
+    b.AddConsole();
+});
+var bootstrapLogger = bootstrapLoggerFactory.CreateLogger("AdaptiveApi.PluginLoader");
+var discovered = PluginLoader.Discover(bootstrapLogger);
 foreach (var plugin in discovered.WebPlugins)
     plugin.ConfigureServices(builder);
 
@@ -93,8 +114,21 @@ foreach (var module in discovered.Modules)
     builder.Services.AddSingleton<IAdaptiveApiPlugin>(module);
 }
 builder.Services.AddAdaptiveApiPluginHooks();
-builder.Services.AddSingleton<IPluginRegistry, PluginRegistry>();
+builder.Services.AddSingleton<IPluginRegistry>(sp =>
+    new PluginRegistry(sp.GetServices<IAdaptiveApiPlugin>(), discovered.Disabled));
 builder.Services.AddScoped<IPluginSettingsStore, DbPluginSettingsStore>();
+builder.Services.AddScoped<AdaptiveApi.Core.Plugins.IPluginEnablement,
+    AdaptiveApi.Infrastructure.Plugins.DbPluginEnablement>();
+
+// Built-in regex request rules — same hook contract a plugin would use, so
+// they fan out across every adapter via the existing dispatcher. Scoped
+// because the source caches loaded rules per-request.
+builder.Services.AddScoped<AdaptiveApi.Infrastructure.RequestRules.IRequestRuleSource,
+    AdaptiveApi.Infrastructure.RequestRules.DbRequestRuleSource>();
+builder.Services.AddScoped<AdaptiveApi.Plugins.SDK.Hooks.IRequestTranslationHook,
+    AdaptiveApi.Infrastructure.RequestRules.RequestRuleRequestHook>();
+builder.Services.AddScoped<AdaptiveApi.Plugins.SDK.Hooks.IResponseTranslationHook,
+    AdaptiveApi.Infrastructure.RequestRules.RequestRuleResponseHook>();
 
 var app = builder.Build();
 
@@ -138,6 +172,10 @@ McpEndpoints.Map(adminGroup);
 DocumentTranslationEndpoints.Map(adminGroup);
 TranslationMemoryEndpoints.Map(adminGroup);
 AuditEndpoints.Map(adminGroup);
+SystemEndpoints.Map(adminGroup);
+RouteProfileEndpoints.Map(adminGroup);
+RequestRuleEndpoints.Map(adminGroup);
+SecretEndpoints.Map(adminGroup);
 
 TranslateEndpoint.Map(app);
 
@@ -148,12 +186,17 @@ PluginEndpoints.Map(adminGroup);
 foreach (var plugin in discovered.WebPlugins)
     plugin.Map(app);
 
-// Each plugin module gets its own /plugins/{id} group for any custom admin
-// endpoints. The host doesn't enforce auth here — modules are responsible
-// for adding their own RequireAuthorization() calls in MapRoutes.
+// Each plugin module gets its own /plugins/{id} group. By default the host
+// wraps the group with the admin policy so a plugin can't accidentally open
+// the host. Plugins that need anonymous endpoints (webhooks, OAuth callbacks)
+// must opt in via PluginManifest.AllowAnonymousEndpoints; the loader logs a
+// startup warning every time that opt-in is in effect.
 foreach (var module in discovered.Modules)
 {
-    var group = app.MapGroup($"/plugins/{module.Manifest.Id}");
+    var groupBase = app.MapGroup($"/plugins/{module.Manifest.Id}");
+    var group = module.Manifest.AllowAnonymousEndpoints
+        ? groupBase
+        : groupBase.RequireAuthorization(AuthSetup.AdminPolicy);
     module.MapRoutes(group);
 }
 

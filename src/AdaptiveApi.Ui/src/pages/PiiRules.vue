@@ -161,6 +161,12 @@ async function runTest() {
   }
 }
 
+// The combined-config tester is collapsed by default — the inline preview
+// in the rule editor covers the common single-rule case, and most users
+// never need the broader test. The expander stays available for the
+// "verify my pack + custom-rules combo" case.
+const showCombinedTester = ref(false);
+
 // Live tester for the rule currently being edited.
 const editorPreview = ref<{ matches: PiiTestMatch[]; error: string | null }>({
   matches: [], error: null,
@@ -408,16 +414,19 @@ const expandedPackData = computed(() =>
       </div>
     </div>
 
-    <!-- ===== tester ===== -->
+    <!-- ===== combined tester (collapsed by default) ===== -->
     <div class="card">
-      <div class="card-header">
-        <span>Tester</span>
+      <div class="card-header cursor-pointer flex items-center gap-2"
+           @click="showCombinedTester = !showCombinedTester">
+        <span :class="showCombinedTester ? 'i-carbon-chevron-down' : 'i-carbon-chevron-right'" />
+        <span>Combined tester</span>
         <span class="text-xs text-surface-700">
-          Run the selected packs and rules against sample text. Persists nothing.
-          Pack and rule selection above feed in as checkboxes.
+          Optional. Run the selected packs + custom rules together against
+          sample text. Inline preview in the editor above already covers
+          single-rule testing.
         </span>
       </div>
-      <div class="card-body grid grid-cols-2 gap-3">
+      <div v-if="showCombinedTester" class="card-body grid grid-cols-2 gap-3">
         <label class="flex flex-col gap-1 text-xs">
           Sample text
           <textarea class="input font-mono text-xs" rows="6" v-model="testState.text"></textarea>

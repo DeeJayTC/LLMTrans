@@ -77,6 +77,7 @@ public sealed class AnthropicMessagesAdapter : IProviderAdapter
             UserLanguage: effective.UserLanguage.Value,
             LlmLanguage: effective.LlmLanguage.Value,
             Direction: effective.Direction.ToString(),
+            IsStreaming: streaming,
             Properties: new Dictionary<string, object?>(StringComparer.Ordinal));
 
         // Hook 1/6 — before request translation
@@ -224,10 +225,9 @@ public sealed class AnthropicMessagesAdapter : IProviderAdapter
 
     private static RouteConfig ApplyHeaderOverrides(RouteConfig route, HttpRequest req)
     {
-        var userLang = req.Headers.TryGetValue("X-AdaptiveApi-Target-Lang", out var tl)
-            ? new LanguageCode(tl.ToString().Trim().ToLowerInvariant()) : route.UserLanguage;
-        var llmLang = req.Headers.TryGetValue("X-AdaptiveApi-Source-Lang", out var sl)
-            ? new LanguageCode(sl.ToString().Trim().ToLowerInvariant()) : route.LlmLanguage;
+        var (userOverride, llmOverride) = LangHeader.Parse(req.Headers);
+        var userLang = userOverride is not null ? new LanguageCode(userOverride) : route.UserLanguage;
+        var llmLang = llmOverride is not null ? new LanguageCode(llmOverride) : route.LlmLanguage;
         var mode = req.Headers.TryGetValue("X-AdaptiveApi-Mode", out var m)
             ? Enum.TryParse<DirectionMode>(m.ToString(), true, out var parsed) ? parsed : route.Direction
             : route.Direction;
@@ -236,7 +236,8 @@ public sealed class AnthropicMessagesAdapter : IProviderAdapter
         int? tmThreshold = req.Headers.TryGetValue("X-AdaptiveApi-Tm-Threshold", out var tmt)
                            && int.TryParse(tmt.ToString(), out var parsedThreshold)
             ? parsedThreshold : route.TranslationMemoryThreshold;
-        if (tl.Count > 0 && mode == DirectionMode.Off) mode = DirectionMode.Bidirectional;
+        if (LangHeader.AnyOverrideSet(req.Headers) && mode == DirectionMode.Off)
+            mode = DirectionMode.Bidirectional;
         return route with
         {
             UserLanguage = userLang,

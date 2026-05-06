@@ -22,5 +22,10 @@ public interface IAiCallHook
     /// Observe the upstream response. The body is not yet read; plugins that
     /// need to inspect the body must buffer and replace, which is best done
     /// via <see cref="IResponseTranslationHook"/> instead.
+    ///
+    /// <b>Streaming caveat.</b> When <see cref="PipelineHookContext.IsStreaming"/>
+    /// is true, the body is consumed by the streaming translator immediately
+    /// after this hook returns. Reading <paramref name="response"/>'s body here
+    /// will starve the client. Inspect headers / status only in that case.
     Task<HookResult> AfterAsync(PipelineHookContext context, HttpResponseMessage response, CancellationToken ct);
 }

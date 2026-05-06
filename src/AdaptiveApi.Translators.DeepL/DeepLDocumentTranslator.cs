@@ -12,15 +12,20 @@ namespace AdaptiveApi.Translators.DeepL;
 /// translation. The API endpoint (`POST /admin/translate-document`) thin-wraps this.
 public sealed class DeepLDocumentTranslator
 {
-    private readonly IOptions<DeepLOptions> _options;
+    private readonly IOptionsMonitor<DeepLOptions> _options;
     private readonly ILogger<DeepLDocumentTranslator> _log;
-    private readonly Lazy<DeepLClient> _client;
+    private Lazy<DeepLClient> _client;
+    private readonly IDisposable? _changeReg;
 
-    public DeepLDocumentTranslator(IOptions<DeepLOptions> options, ILogger<DeepLDocumentTranslator> log)
+    public DeepLDocumentTranslator(IOptionsMonitor<DeepLOptions> options, ILogger<DeepLDocumentTranslator> log)
     {
         _options = options;
         _log = log;
         _client = new Lazy<DeepLClient>(CreateClient, isThreadSafe: true);
+        // Same hot-rotation pattern as DeepLTranslator: rebuild the lazy
+        // SDK client when post-configure refreshes the options.
+        _changeReg = _options.OnChange(_ =>
+            _client = new Lazy<DeepLClient>(CreateClient, isThreadSafe: true));
     }
 
     /// Uploads the supplied document, polls until translation completes, and writes
@@ -87,12 +92,12 @@ public sealed class DeepLDocumentTranslator
 
     private DeepLClient CreateClient()
     {
-        var apiKey = _options.Value.ApiKey
+        var apiKey = _options.CurrentValue.ApiKey
             ?? throw new InvalidOperationException("DeepL API key not configured");
 
-        if (!string.IsNullOrEmpty(_options.Value.BaseUrl))
+        if (!string.IsNullOrEmpty(_options.CurrentValue.BaseUrl))
         {
-            var clientOptions = new DeepLClientOptions { ServerUrl = _options.Value.BaseUrl };
+            var clientOptions = new DeepLClientOptions { ServerUrl = _options.CurrentValue.BaseUrl };
             return new DeepLClient(apiKey, clientOptions);
         }
         return new DeepLClient(apiKey);

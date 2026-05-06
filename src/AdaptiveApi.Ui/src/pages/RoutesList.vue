@@ -1,21 +1,25 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
+import { RouterLink } from 'vue-router';
 import { useRoutesStore } from '../stores/routes';
-import { api } from '../api';
+import { api, friendlyError } from '../api';
 import type { Glossary, ProxyRule, Route, StyleRule } from '../types';
+import type { RouteProfile } from '../api';
 
 const store = useRoutesStore();
 const glossaries = ref<Glossary[]>([]);
 const styleRules = ref<StyleRule[]>([]);
 const proxyRules = ref<ProxyRule[]>([]);
+const profiles = ref<RouteProfile[]>([]);
 
 onMounted(async () => {
   await store.refresh();
   try {
-    [glossaries.value, styleRules.value, proxyRules.value] = await Promise.all([
+    [glossaries.value, styleRules.value, proxyRules.value, profiles.value] = await Promise.all([
       api.glossaries.list(),
       api.styleRules.list(),
       api.proxyRules.list(),
+      api.routeProfiles.list(),
     ]);
   } catch { /* ignore load errors — form still works without dropdowns */ }
 });
@@ -23,6 +27,17 @@ onMounted(async () => {
 const showCreate = ref(false);
 const editingId = ref<string | null>(null);
 const form = ref<Partial<Route>>(emptyForm());
+
+const showAdvancedBindings = ref(false);
+
+const directionArrow = computed(() => {
+  switch (form.value.direction) {
+    case 'RequestOnly': return '→';
+    case 'ResponseOnly': return '←';
+    case 'Off': return '·';
+    default: return '⇄';
+  }
+});
 
 function emptyForm(): Partial<Route> {
   return {
@@ -38,6 +53,7 @@ function emptyForm(): Partial<Route> {
     requestStyleRuleId: null,
     responseStyleRuleId: null,
     proxyRuleId: null,
+    profileId: null,
   };
 }
 
@@ -75,6 +91,7 @@ async function submit() {
       requestStyleRuleId: form.value.requestStyleRuleId || null,
       responseStyleRuleId: form.value.responseStyleRuleId || null,
       proxyRuleId: form.value.proxyRuleId || null,
+      profileId: form.value.profileId || null,
     };
     if (editingId.value) {
       await api.routes.update(editingId.value, normalised);
@@ -84,7 +101,7 @@ async function submit() {
     await store.refresh();
     cancel();
   } catch (e: unknown) {
-    formError.value = e instanceof Error ? e.message : String(e);
+    formError.value = friendlyError(e);
   } finally {
     submitting.value = false;
   }
@@ -95,7 +112,7 @@ async function issueToken(id: string) {
     const res = await api.routes.issueToken(id);
     issuedToken.value = { routeId: id, token: res.plaintextToken };
   } catch (e: unknown) {
-    formError.value = e instanceof Error ? e.message : String(e);
+    formError.value = friendlyError(e);
   }
 }
 
@@ -144,23 +161,29 @@ async function remove(id: string) {
           Upstream URL
           <input class="input" v-model="form.upstreamBaseUrl" required />
         </label>
-        <label class="flex flex-col gap-1 text-xs">
-          User language
-          <input class="input" v-model="form.userLanguage" placeholder="de" />
-        </label>
-        <label class="flex flex-col gap-1 text-xs">
-          LLM language
-          <input class="input" v-model="form.llmLanguage" placeholder="en-US" />
-        </label>
-        <label class="flex flex-col gap-1 text-xs">
-          Direction
-          <select class="input" v-model="form.direction">
-            <option>Bidirectional</option>
-            <option>RequestOnly</option>
-            <option>ResponseOnly</option>
-            <option>Off</option>
-          </select>
-        </label>
+        <div class="col-span-2 flex flex-col gap-1 text-xs">
+          <span>Language pair</span>
+          <div class="flex items-center gap-2">
+            <input class="input w-24 text-center font-mono" v-model="form.userLanguage" placeholder="de"
+                   :title="'Your users speak this'" />
+            <select class="input w-32 text-center" v-model="form.direction" :title="'Direction'">
+              <option value="Bidirectional">{{ '⇄' }} Both</option>
+              <option value="RequestOnly">{{ '→' }} Request only</option>
+              <option value="ResponseOnly">{{ '←' }} Response only</option>
+              <option value="Off">{{ '·' }} Off</option>
+            </select>
+            <input class="input w-24 text-center font-mono" v-model="form.llmLanguage" placeholder="en-US"
+                   :title="'LLM speaks this'" />
+            <span class="text-surface-500 ml-2">
+              {{ form.userLanguage || 'user' }} {{ directionArrow }} {{ form.llmLanguage || 'llm' }}
+            </span>
+          </div>
+          <span class="text-surface-500">
+            Your users speak the left side; the LLM works in the right side.
+            "Both" translates each direction; "Off" disables translation
+            (useful for routing without translating).
+          </span>
+        </div>
         <label class="flex flex-col gap-1 text-xs">
           Translator
           <select class="input" v-model="form.translatorId">
@@ -172,10 +195,31 @@ async function remove(id: string) {
           </select>
         </label>
 
-        <div class="col-span-2 border-t border-surface-200 pt-3 mt-1 text-xs text-surface-700 font-500">
-          Bindings — select which glossary, style rule, and proxy rule apply when this route's token is used.
+        <div class="col-span-2 border-t border-surface-200 pt-3 mt-1 flex flex-col gap-1">
+          <label class="flex flex-col gap-1 text-xs">
+            Profile
+            <select class="input" v-model="form.profileId">
+              <option :value="null">— no profile (configure each binding below) —</option>
+              <option v-for="p in profiles" :key="p.id" :value="p.id">
+                {{ p.name }} · <span class="font-mono">{{ p.id }}</span>
+              </option>
+            </select>
+            <span class="text-surface-500 text-xs">
+              Profiles bundle the glossary + styles + proxy rule for reuse
+              across routes. Per-route overrides below still win when set.
+              Manage profiles on the
+              <RouterLink to="/route-profiles" class="text-brand-600 underline">Profiles</RouterLink>
+              page.
+            </span>
+          </label>
+          <button type="button" class="text-xs text-brand-600 self-start"
+                  @click="showAdvancedBindings = !showAdvancedBindings">
+            {{ showAdvancedBindings ? 'Hide' : 'Show' }} per-route bindings
+            (override profile)
+          </button>
         </div>
 
+        <template v-if="showAdvancedBindings || !form.profileId">
         <label class="flex flex-col gap-1 text-xs">
           Glossary
           <select class="input" v-model="form.glossaryId">
@@ -214,6 +258,7 @@ async function remove(id: string) {
             </option>
           </select>
         </label>
+        </template>
 
         <div class="col-span-2 flex items-center gap-2 justify-end">
           <span v-if="formError" class="text-xs text-red-700 mr-auto">{{ formError }}</span>
@@ -238,7 +283,27 @@ async function remove(id: string) {
       </div>
     </div>
 
-    <div class="card">
+    <div v-if="store.routes.length === 0 && !store.loading && !showCreate" class="card">
+      <div class="card-body text-center py-10 flex flex-col items-center gap-3">
+        <div class="i-carbon-flow text-4xl text-surface-400" />
+        <div class="text-base font-500">No routes yet</div>
+        <div class="text-sm text-surface-700 max-w-md">
+          A route is the unit your SDK points at — pick an LLM provider and a
+          language pair, and you get back a token to use as your
+          <code>base_url</code>.
+        </div>
+        <div class="flex gap-2 mt-2">
+          <RouterLink to="/wizard" class="btn-primary">
+            <span class="i-carbon-rocket" /> Setup wizard
+          </RouterLink>
+          <button class="btn" @click="startNew">
+            <span class="i-carbon-add" /> Create manually
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div v-else class="card">
       <table>
         <thead>
           <tr>
@@ -264,9 +329,6 @@ async function remove(id: string) {
               <button class="btn ml-2" @click="issueToken(r.id)">Issue token</button>
               <button class="btn btn-danger ml-2" @click="remove(r.id)">Delete</button>
             </td>
-          </tr>
-          <tr v-if="store.routes.length === 0 && !store.loading">
-            <td colspan="6" class="text-surface-700 text-center py-6">No routes yet.</td>
           </tr>
         </tbody>
       </table>

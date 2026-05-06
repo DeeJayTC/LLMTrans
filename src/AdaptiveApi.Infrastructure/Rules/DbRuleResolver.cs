@@ -186,7 +186,11 @@ public sealed class DbRuleResolver : IRuleResolver
                         luhn = true;
                 }
             }
-            detector = new PiiDetector(rule.Name, rule.Replacement, new Regex(rule.Pattern, opts), luhn);
+            // Tenant-supplied regex flows through SafeRegex.Compile so a
+            // pathological pattern can't ReDoS the host — the per-match
+            // timeout in the engine kills runaway evaluation.
+            detector = new PiiDetector(rule.Name, rule.Replacement,
+                AdaptiveApi.Core.Pipeline.SafeRegex.Compile(rule.Pattern, opts), luhn);
             return true;
         }
         catch (Exception)

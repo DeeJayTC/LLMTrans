@@ -90,6 +90,7 @@ public sealed class McpRouteAdapter : IProviderAdapter
             UserLanguage: effective.UserLanguage.Value,
             LlmLanguage: effective.LlmLanguage.Value,
             Direction: effective.Direction.ToString(),
+            IsStreaming: false,
             Properties: new Dictionary<string, object?>(StringComparer.Ordinal));
 
         // Hook 1/6 — before request translation

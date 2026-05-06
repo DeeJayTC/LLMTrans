@@ -58,6 +58,37 @@ async function addOne() {
   finally { saving.value = false; }
 }
 
+// File-based import (CSV / TBX). Goes through the dedicated import
+// endpoint which handles the parsing server-side and reports
+// added/skipped counts plus any per-line errors.
+const importFormat = ref<'csv' | 'tbx'>('csv');
+const importBody = ref('');
+const importResult = ref<{ added: number; skipped: number; errors: string[] } | null>(null);
+
+async function onImportFile(ev: Event) {
+  const file = (ev.target as HTMLInputElement).files?.[0];
+  if (!file) return;
+  importBody.value = await file.text();
+  importFormat.value = file.name.toLowerCase().endsWith('.tbx') ? 'tbx' : 'csv';
+}
+
+async function runImport() {
+  if (!importBody.value.trim()) return;
+  saving.value = true;
+  importResult.value = null;
+  try {
+    importResult.value = await api.glossaries.importEntries(glossaryId, {
+      format: importFormat.value,
+      sourceLanguage: draft.value.sourceLanguage,
+      targetLanguage: draft.value.targetLanguage,
+      body: importBody.value,
+      caseSensitive: draft.value.caseSensitive,
+    });
+    if (importResult.value.added > 0) await load();
+  } catch (e: unknown) { error.value = e instanceof Error ? e.message : String(e); }
+  finally { saving.value = false; }
+}
+
 async function importTsv() {
   const lines = bulkInput.value.split('\n').map((l) => l.trim()).filter(Boolean);
   const parsed: Entry[] = [];
@@ -131,6 +162,43 @@ onMounted(load);
           <button class="btn-primary" type="submit" :disabled="saving">Add</button>
         </div>
       </form>
+    </div>
+
+    <!-- File import (CSV / TBX) -->
+    <div class="card">
+      <div class="card-header">
+        <span>Import from file</span>
+        <span class="text-xs text-surface-700">
+          CSV (with <code>source,target</code> header row) or TBX 2008/3.0.
+          Languages come from the form above.
+        </span>
+      </div>
+      <div class="card-body flex flex-col gap-2">
+        <div class="flex items-center gap-3">
+          <label class="text-xs">
+            <input type="radio" value="csv" v-model="importFormat" /> CSV
+          </label>
+          <label class="text-xs">
+            <input type="radio" value="tbx" v-model="importFormat" /> TBX
+          </label>
+          <input type="file" accept=".csv,.tbx,.xml,.txt" @change="onImportFile"
+                 class="text-xs" />
+        </div>
+        <textarea class="input font-mono text-xs" style="min-height: 100px;"
+                  v-model="importBody"
+                  placeholder="source,target&#10;pull request,Pull Request&#10;checkout,Kasse"></textarea>
+        <div class="flex items-center gap-2">
+          <button class="btn-primary" :disabled="saving || !importBody.trim()" @click="runImport">
+            Import
+          </button>
+          <span v-if="importResult" class="text-xs text-surface-700">
+            Added {{ importResult.added }} · skipped {{ importResult.skipped }}
+            <span v-if="importResult.errors.length" class="text-red-700 ml-2">
+              · {{ importResult.errors.length }} error(s): {{ importResult.errors[0] }}
+            </span>
+          </span>
+        </div>
+      </div>
     </div>
 
     <!-- Bulk import -->

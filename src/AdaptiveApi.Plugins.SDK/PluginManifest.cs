@@ -33,4 +33,13 @@ public sealed class PluginManifest
     /// Plugin IDs that must also be loaded for this plugin to function.
     /// The host enforces these at startup; missing dependencies disable the plugin.
     public IReadOnlyList<string> Dependencies { get; init; } = [];
+
+    /// Opt out of the host's default-deny authorization on the plugin's
+    /// route group at <c>/plugins/{Id}/...</c>. Default <c>false</c> — the host
+    /// wraps the group with the admin policy so a sloppy plugin can't open
+    /// the host. Set to <c>true</c> only when the plugin intentionally
+    /// exposes anonymous endpoints (e.g. webhooks, public OAuth callbacks);
+    /// the host logs a startup warning every time a plugin claims this so an
+    /// operator sees it on every restart.
+    public bool AllowAnonymousEndpoints { get; init; }
 }

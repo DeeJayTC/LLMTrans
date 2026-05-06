@@ -83,6 +83,22 @@ Stdio-local servers also need the `@adaptiveapi/mcp-bridge` npm package.
 The bridge is not yet published; until it ships, the stdio path is a
 Flow B API target only (`POST /mcp-translate/<token>`).
 
+## Plugins
+
+Drop AdaptiveAPI plugin DLLs into `./plugins/` next to this compose file —
+the API container mounts it read-only at `/app/plugins/` and the loader
+scans every `*.dll` there at startup. Plugins also work when shipped next
+to the host binary as `AdaptiveApi.*.dll`.
+
+The SDK lives at `src/AdaptiveApi.Plugins.SDK/` (NuGet:
+`AdaptiveApi.Plugins.SDK`, `0.1.0-preview`). For a worked reference see
+[`examples/sample-plugin/`](../examples/sample-plugin/).
+
+Manage plugins from the admin UI's **Plugins** page: enable / disable
+toggle (persisted), per-plugin opaque-JSON settings editor, and a
+"disabled at startup" panel that explains why the loader rejected a
+module (missing dependency, duplicate id, dependency cycle, …).
+
 ## Environment variables
 
 See [.env.example](.env.example) for the full list with inline comments.

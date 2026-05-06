@@ -1,5 +1,26 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <PackageId>AdaptiveApi.Plugins.SDK</PackageId>
+    <Version>0.1.0-preview</Version>
+    <Authors>Tim Cadenbach</Authors>
+    <Description>SDK for building AdaptiveAPI plugins. Implement IAdaptiveApiPlugin, register hooks via DI, drop the resulting assembly next to the host. See https://github.com/DeeJayTC/AdaptiveAPI for examples.</Description>
+    <PackageTags>adaptiveapi;plugin;sdk;llm;translation</PackageTags>
+    <PackageProjectUrl>https://github.com/DeeJayTC/AdaptiveAPI</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/DeeJayTC/AdaptiveAPI</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>AGPL-3.0-or-later</PackageLicenseExpression>
+    <IsPackable>true</IsPackable>
+  </PropertyGroup>
+
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>

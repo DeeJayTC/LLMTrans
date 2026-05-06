@@ -28,10 +28,9 @@ public sealed class DbPluginSettingsStore : IPluginSettingsStore
 
     public async Task SetRawAsync(string pluginId, string? tenantId, string json, CancellationToken ct)
     {
-        // Validate JSON syntax before writing — schema is plugin-owned but
-        // garbage strings would corrupt every future read.
-        using (JsonDocument.Parse(json)) { }
-
+        // Callers are expected to validate JSON syntax at the input boundary
+        // (e.g. the admin endpoint). The store trusts what it's given to keep
+        // a single validation layer — see PluginEndpoints.UpdateSettings.
         var key = tenantId ?? GlobalTenantId;
         var row = await _db.PluginSettings
             .FirstOrDefaultAsync(x => x.TenantId == key && x.PluginId == pluginId, ct);

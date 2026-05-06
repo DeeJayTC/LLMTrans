@@ -96,6 +96,7 @@ public sealed class OpenAiChatAdapter : IProviderAdapter
             UserLanguage: effective.UserLanguage.Value,
             LlmLanguage: effective.LlmLanguage.Value,
             Direction: effective.Direction.ToString(),
+            IsStreaming: streaming,
             Properties: new Dictionary<string, object?>(StringComparer.Ordinal));
 
         // Hook 1/6 — before request translation
@@ -384,30 +385,24 @@ public sealed class OpenAiChatAdapter : IProviderAdapter
 
     private static RouteConfig ApplyHeaderOverrides(RouteConfig route, HttpRequest req)
     {
-        var userLang = req.Headers.TryGetValue("X-AdaptiveApi-Target-Lang", out var tl)
-            ? new LanguageCode(tl.ToString().Trim().ToLowerInvariant())
-            : route.UserLanguage;
-        var llmLang = req.Headers.TryGetValue("X-AdaptiveApi-Source-Lang", out var sl)
-            ? new LanguageCode(sl.ToString().Trim().ToLowerInvariant())
-            : route.LlmLanguage;
+        var (userOverride, llmOverride) = LangHeader.Parse(req.Headers);
+        var userLang = userOverride is not null ? new LanguageCode(userOverride) : route.UserLanguage;
+        var llmLang = llmOverride is not null ? new LanguageCode(llmOverride) : route.LlmLanguage;
         var mode = req.Headers.TryGetValue("X-AdaptiveApi-Mode", out var m)
             ? Enum.TryParse<DirectionMode>(m.ToString(), true, out var parsed) ? parsed : route.Direction
             : route.Direction;
         var translator = req.Headers.TryGetValue("X-AdaptiveApi-Translator", out var t)
             ? t.ToString() : route.TranslatorId;
         var glossary = req.Headers.TryGetValue("X-AdaptiveApi-Glossary", out var g) ? g.ToString() : route.GlossaryId;
-        // Header precedence:
-        //   X-AdaptiveApi-Request-Style-Rule / X-AdaptiveApi-Response-Style-Rule override per direction.
-        //   X-AdaptiveApi-Style-Rule (legacy) overrides both directions unless a direction-specific
-        //   header is also present.
-        string? legacyStyle = req.Headers.TryGetValue("X-AdaptiveApi-Style-Rule", out var srv)
-            ? srv.ToString() : null;
+        // Style-rule overrides are direction-specific. The legacy
+        // `X-AdaptiveApi-Style-Rule` header (which set both directions) was
+        // removed — callers must use the per-direction headers.
         var requestStyle = req.Headers.TryGetValue("X-AdaptiveApi-Request-Style-Rule", out var rsr)
             ? rsr.ToString()
-            : legacyStyle ?? route.RequestStyleRuleId;
+            : route.RequestStyleRuleId;
         var responseStyle = req.Headers.TryGetValue("X-AdaptiveApi-Response-Style-Rule", out var rspsr)
             ? rspsr.ToString()
-            : legacyStyle ?? route.ResponseStyleRuleId;
+            : route.ResponseStyleRuleId;
 
         var tmId = req.Headers.TryGetValue("X-AdaptiveApi-Translation-Memory", out var tm)
             ? tm.ToString() : route.TranslationMemoryId;
@@ -415,7 +410,8 @@ public sealed class OpenAiChatAdapter : IProviderAdapter
                            && int.TryParse(tmt.ToString(), out var parsedThreshold)
             ? parsedThreshold : route.TranslationMemoryThreshold;
 
-        if (tl.Count > 0 && mode == DirectionMode.Off) mode = DirectionMode.Bidirectional;
+        if (LangHeader.AnyOverrideSet(req.Headers) && mode == DirectionMode.Off)
+            mode = DirectionMode.Bidirectional;
 
         return route with
         {

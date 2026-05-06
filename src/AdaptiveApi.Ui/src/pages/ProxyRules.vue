@@ -126,6 +126,32 @@ function removePath(which: 'request' | 'response', idx: number) {
   arr.splice(idx, 1);
 }
 
+/// JSONPath presets per provider. The defaults match what the host already
+/// applies for OpenAI / Anthropic / MCP — clicking these makes the override
+/// explicit so an operator can see what's translated. The Generic preset is
+/// empty: Generic adapter routes need their JSONPaths configured per route
+/// anyway, so there's no sensible default.
+const allowlistPresets: Record<string, { request: string[]; response: string[] }> = {
+  'OpenAI chat': {
+    request: ['$.messages[*].content', '$.messages[*].content[*].text', '$.input', '$.input[*].content[*].text'],
+    response: ['$.choices[*].message.content', '$.choices[*].delta.content', '$.output[*].content[*].text'],
+  },
+  'Anthropic messages': {
+    request: ['$.messages[*].content', '$.messages[*].content[*].text', '$.system'],
+    response: ['$.content[*].text'],
+  },
+  'MCP (JSON-RPC)': {
+    request: ['$.params.messages[*].content', '$.params.message'],
+    response: ['$.result.content[*].text', '$.result.message'],
+  },
+};
+
+function applyPreset(name: keyof typeof allowlistPresets) {
+  const p = allowlistPresets[name];
+  form.value.requestPaths = [...p.request];
+  form.value.responsePaths = [...p.response];
+}
+
 function addDenylistKey() {
   form.value.extraToolArgKeys.push('');
 }
@@ -351,6 +377,13 @@ onMounted(refresh);
             <span class="text-xs text-surface-700">override the default per-provider allowlist</span>
           </div>
           <div class="card-body flex flex-col gap-3">
+            <div class="flex flex-wrap gap-1 text-xs">
+              <span class="text-surface-700 self-center">Presets:</span>
+              <button v-for="(_, name) in allowlistPresets" :key="name" type="button"
+                      class="btn text-xs" @click="applyPreset(name as keyof typeof allowlistPresets)">
+                {{ name }}
+              </button>
+            </div>
             <div>
               <div class="flex items-center justify-between text-xs text-surface-700 mb-1">
                 <span class="font-500">Request</span>

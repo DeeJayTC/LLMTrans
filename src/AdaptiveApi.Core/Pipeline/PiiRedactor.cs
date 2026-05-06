@@ -37,13 +37,23 @@ public static class PiiRedactor
 
         foreach (var detector in detectors.Detectors)
         {
-            working = detector.Regex.Replace(working, m =>
+            try
             {
-                if (detector.LuhnValidate && !LuhnValid(m.Value)) return m.Value;
-                var id = $"PII_{detector.Kind}_{redactions.Count}";
-                redactions.Add(new Placeholder(id, detector.Replacement));
-                return $"<{TagPrefix} id=\"{id}\"/>";
-            });
+                working = detector.Regex.Replace(working, m =>
+                {
+                    if (detector.LuhnValidate && !LuhnValid(m.Value)) return m.Value;
+                    var id = $"PII_{detector.Kind}_{redactions.Count}";
+                    redactions.Add(new Placeholder(id, detector.Replacement));
+                    return $"<{TagPrefix} id=\"{id}\"/>";
+                });
+            }
+            catch (RegexMatchTimeoutException)
+            {
+                // Tenant-supplied (or pathological built-in) regex took longer
+                // than SafeRegex's per-match timeout. Skip this detector for
+                // this input rather than failing the whole redaction — the
+                // request flows on with everything else still applied.
+            }
         }
 
         return new Result(working, redactions);

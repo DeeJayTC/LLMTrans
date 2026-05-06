@@ -20,6 +20,11 @@ services:
       PublicBaseUrl: ${PUBLIC_BASE_URL:-http://localhost:8080}
     volumes:
       - adaptiveapi-data:/data
+      # Drop AdaptiveAPI plugin DLLs into ./plugins on the host to load them
+      # into the API container at startup. Each *.dll there is scanned by
+      # the plugin loader. See examples/sample-plugin/README.md for a
+      # ready-to-build reference.
+      - ./plugins:/app/plugins:ro
     expose:
       - "8080"
     ports:

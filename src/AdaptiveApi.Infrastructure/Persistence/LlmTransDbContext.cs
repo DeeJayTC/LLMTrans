@@ -26,6 +26,9 @@ public sealed class AdaptiveApiDbContext : DbContext
     public DbSet<InviteEntity> Invites => Set<InviteEntity>();
     public DbSet<BillingUsageEntity> BillingUsage => Set<BillingUsageEntity>();
     public DbSet<PluginSettingsEntity> PluginSettings => Set<PluginSettingsEntity>();
+    public DbSet<RouteProfileEntity> RouteProfiles => Set<RouteProfileEntity>();
+    public DbSet<RequestRuleEntity> RequestRules => Set<RequestRuleEntity>();
+    public DbSet<SecretEntity> Secrets => Set<SecretEntity>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -242,6 +245,37 @@ public sealed class AdaptiveApiDbContext : DbContext
             e.HasIndex(x => x.Slug).IsUnique();
         });
 
+        b.Entity<RouteProfileEntity>(e =>
+        {
+            e.ToTable("route_profiles");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).HasMaxLength(64);
+            e.Property(x => x.TenantId).HasMaxLength(64).IsRequired();
+            e.Property(x => x.Name).HasMaxLength(256).IsRequired();
+            e.HasIndex(x => x.TenantId);
+        });
+
+        b.Entity<SecretEntity>(e =>
+        {
+            e.ToTable("secrets");
+            e.HasKey(x => x.Key);
+            e.Property(x => x.Key).HasMaxLength(128);
+        });
+
+        b.Entity<RequestRuleEntity>(e =>
+        {
+            e.ToTable("request_rules");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).HasMaxLength(64);
+            e.Property(x => x.TenantId).HasMaxLength(64).IsRequired();
+            e.Property(x => x.RouteId).HasMaxLength(64);
+            e.Property(x => x.Name).HasMaxLength(256).IsRequired();
+            e.Property(x => x.Scope).HasMaxLength(32).IsRequired();
+            e.Property(x => x.Action).HasMaxLength(32).IsRequired();
+            e.HasIndex(x => new { x.TenantId, x.Enabled, x.Priority });
+            e.HasIndex(x => x.RouteId);
+        });
+
         b.Entity<PluginSettingsEntity>(e =>
         {
             e.ToTable("plugin_settings");
@@ -249,6 +283,7 @@ public sealed class AdaptiveApiDbContext : DbContext
             e.Property(x => x.TenantId).HasMaxLength(64);
             e.Property(x => x.PluginId).HasMaxLength(128);
             e.Property(x => x.SettingsJson).IsRequired();
+            e.Property(x => x.Enabled).HasDefaultValue(true);
         });
 
         b.Entity<AuditEventEntity>(e =>
